@@ -1,0 +1,10 @@
+flask
+pymongo
+sentence-transformers
+numpy
+scipy
+python-dotenv
+faiss-cpu
+tqdm
+torch
+pandas
