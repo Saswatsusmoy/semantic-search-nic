@@ -1,11 +1,21 @@
-flask
+# Core dependencies
 pymongo
-sentence-transformers
-numpy
-scipy
-python-dotenv
 faiss-cpu
+numpy
+sentence-transformers
+python-dotenv
+
+# FastAPI dependencies
+fastapi
+uvicorn
+python-multipart
+pydantic
+
+# Flask (for backward compatibility)
+flask
+jinja2
+
+# Utilities
 tqdm
-torch
-pandas
-bson
+loguru
+diskcache

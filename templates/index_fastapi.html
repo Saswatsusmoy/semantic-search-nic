@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIC Code Semantic Search</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- This is a version of index.html modified for FastAPI compatibility -->
+    <div class="container">
+        <header class="text-center my-5">
+            <h1>NIC Code Semantic Search</h1>
+            <p class="lead">Search for industry codes and descriptions using natural language</p>
+            <span class="badge bg-primary">Powered by FAISS</span>
+        </header>
+
+        <div class="search-container">
+            <form id="search-form">
+                <div class="input-group mb-4">
+                    <input type="text" id="search-input" class="form-control form-control-lg" 
+                           placeholder="Describe a business activity or industry..." required>
+                    <button class="btn btn-primary" type="submit">Search</button>
+                </div>
+                <div class="form-text text-muted">
+                    Example searches: "bakery", "software development", "wheat cultivation", "manufacturing of plastic products"
+                </div>
+                <div class="form-text text-muted mt-2">
+                    <small><i>Note: Only results with a valid Sub-Class will be displayed</i></small>
+                </div>
+                
+                <!-- Advanced search options toggle -->
+                <a class="advanced-search-toggle" id="advanced-search-toggle">
+                    Advanced Search Options <span id="toggle-icon">▼</span>
+                </a>
+                
+                <!-- Advanced search options panel -->
+                <div class="advanced-search-options" id="advanced-search-options">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="result-count" class="form-label">Results to show</label>
+                            <select id="result-count" class="form-select">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="search-mode" class="form-label">Search mode</label>
+                            <select id="search-mode" class="form-select">
+                                <option value="standard" selected>Standard</option>
+                                <option value="strict">Strict</option>
+                                <option value="relaxed">Relaxed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="show-performance">
+                                <label class="form-check-label" for="show-performance">
+                                    Show performance metrics
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Loading spinner -->
+        <div id="loading-spinner" class="text-center my-5" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Searching for matching NIC codes...</p>
+        </div>
+        
+        <!-- Performance metrics -->
+        <div id="performance-metrics" class="alert alert-info mt-4" style="display: none;">
+            <h5>Performance Metrics</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <p>Total time: <span id="search-time" class="fw-bold"></span> ms</p>
+                </div>
+                <div class="col-md-4">
+                    <p>Index search: <span id="index-time" class="fw-bold"></span> ms</p>
+                </div>
+                <div class="col-md-4">
+                    <p>Results found: <span id="results-count" class="fw-bold"></span></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results container -->
+        <div id="results-container" class="my-5" style="display: none;">
+            <h3>Search Results</h3>
+            
+            <div class="accordion" id="searchResultsAccordion">
+                <!-- Valid results section -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#validResultsCollapse" aria-expanded="true" aria-controls="validResultsCollapse">
+                            Valid NIC Codes
+                        </button>
+                    </h2>
+                    <div id="validResultsCollapse" class="accordion-collapse collapse show" data-bs-parent="#searchResultsAccordion">
+                        <div class="accordion-body">
+                            <p id="no-valid-results" class="text-muted" style="display: none;">No valid NIC codes found.</p>
+                            <div id="valid-results-list" class="list-group">
+                                <!-- Valid results will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Other results section -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#otherResultsCollapse" aria-expanded="false" aria-controls="otherResultsCollapse">
+                            Other Matches
+                        </button>
+                    </h2>
+                    <div id="otherResultsCollapse" class="accordion-collapse collapse" data-bs-parent="#searchResultsAccordion">
+                        <div class="accordion-body">
+                            <p id="no-other-results" class="text-muted" style="display: none;">No additional matches found.</p>
+                            <div id="other-results-list" class="list-group">
+                                <!-- Other results will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- No results message -->
+        <div id="no-results" class="alert alert-warning my-5" style="display: none;">
+            No matches found. Try a different search term.
+        </div>
+
+        <!-- Admin panel modal -->
+        <div class="modal fade" id="adminModal" tabindex="-1" aria-labelledby="adminModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="adminModalLabel">Admin Panel</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Admin functions -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Rebuild FAISS Index</h5>
+                                        <p class="card-text">Rebuild the FAISS index with all documents in the database.</p>
+                                        <button id="rebuild-index-btn" class="btn btn-warning">Rebuild Index</button>
+                                        <div id="rebuild-status" class="mt-3" style="display: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Clear Embedding Cache</h5>
+                                        <p class="card-text">Clear the embedding cache to free memory.</p>
+                                        <button id="clear-cache-btn" class="btn btn-danger">Clear Cache</button>
+                                        <div id="cache-status" class="mt-3" style="display: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Index statistics -->
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5>Index Statistics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="index-stats">
+                                    <p>Loading index statistics...</p>
+                                </div>
+                                <button id="refresh-stats-btn" class="btn btn-sm btn-outline-secondary mt-3">Refresh Stats</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-5">
+        <div class="text-center py-3">
+            <button class="btn btn-sm btn-link text-muted" id="admin-toggle">Admin</button>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='api-client.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <script>
+        // Connect form submission to API client
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchForm = document.getElementById('search-form');
+            if (searchForm) {
+                // Replace the form submission handler
+                searchForm.onsubmit = function(e) {
+                    e.preventDefault();
+                    
+                    const query = document.getElementById('search-input').value.trim();
+                    if (query === '') return;
+                    
+                    const resultCount = document.getElementById('result-count').value;
+                    const searchMode = document.getElementById('search-mode').value;
+                    const showMetrics = document.getElementById('show-performance').checked;
+                    
+                    // Reset display
+                    document.getElementById('no-results').style.display = 'none';
+                    document.getElementById('valid-results-list').innerHTML = '';
+                    document.getElementById('other-results-list').innerHTML = '';
+                    document.getElementById('no-valid-results').style.display = 'none';
+                    document.getElementById('no-other-results').style.display = 'none';
+                    document.getElementById('performance-metrics').style.display = 'none';
+                    
+                    // Show loading spinner
+                    document.getElementById('loading-spinner').style.display = 'block';
+                    // Hide results while loading
+                    document.getElementById('results-container').style.display = 'none';
+                    
+                    // Use JSON API format instead of form data
+                    window.apiClient.searchWithJson(query, resultCount, searchMode, showMetrics)
+                        .then(data => {
+                            // Debug info
+                            console.log("Search results:", data);
+                            console.log(`Got ${data.count} results, metrics: ${JSON.stringify(data.metrics)}`);
+                            
+                            // Hide loading spinner
+                            document.getElementById('loading-spinner').style.display = 'none';
+                            
+                            // Show results container
+                            document.getElementById('results-container').style.display = 'block';
+                            
+                            // Display performance metrics if available
+                            if (showMetrics && data.metrics) {
+                                document.getElementById('search-time').textContent = data.metrics.total_time_ms;
+                                document.getElementById('index-time').textContent = data.metrics.index_time_ms;
+                                document.getElementById('results-count').textContent = data.metrics.results_count;
+                                document.getElementById('performance-metrics').style.display = 'block';
+                            }
+                            
+                            // Process and display results
+                            const results = data.results || [];
+                            if (results.length === 0) {
+                                document.getElementById('no-results').style.display = 'block';
+                                return;
+                            }
+                            
+                            let validResultsCount = 0;
+                            let otherResultsCount = 0;
+                            
+                            // Process each result
+                            results.forEach(result => {
+                                try {
+                                    const resultCard = document.createElement('div');
+                                    resultCard.className = 'list-group-item result-card';
+                                    
+                                    // Check if this is a valid result with subclass
+                                    const isValidSubClass = result.subclass && result.subclass.trim().length > 0;
+                                    
+                                    // Format the result card with data
+                                    resultCard.innerHTML = `
+                                        <div class="result-title">
+                                            <h4>${result.title || 'Untitled'}</h4>
+                                            <span class="badge bg-primary">${result.similarity_percent || 0}% Match</span>
+                                        </div>
+                                        <p>${result.description || 'No description available'}</p>
+                                        <div class="result-details">
+                                            <div><strong>Section:</strong> ${result.section || 'N/A'}</div>
+                                            <div><strong>Division:</strong> ${result.division || 'N/A'}</div>
+                                            <div><strong>Group:</strong> ${result.group || 'N/A'}</div>
+                                            <div><strong>Class:</strong> ${result.class || 'N/A'}</div>
+                                            ${isValidSubClass ? `<div><strong>Sub-Class:</strong> ${result.subclass}</div>` : ''}
+                                        </div>
+                                    `;
+                                    
+                                    // Add to the appropriate list
+                                    if (isValidSubClass) {
+                                        document.getElementById('valid-results-list').appendChild(resultCard);
+                                        validResultsCount++;
+                                    } else {
+                                        document.getElementById('other-results-list').appendChild(resultCard);
+                                        otherResultsCount++;
+                                    }
+                                } catch (err) {
+                                    console.error("Error rendering result:", err, result);
+                                }
+                            });
+                            
+                            // Show appropriate messages if either list is empty
+                            if (validResultsCount === 0) {
+                                document.getElementById('no-valid-results').style.display = 'block';
+                            }
+                            
+                            if (otherResultsCount === 0) {
+                                document.getElementById('no-other-results').style.display = 'block';
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Search error:", error);
+                            document.getElementById('loading-spinner').style.display = 'none';
+                            document.getElementById('no-results').style.display = 'block';
+                            document.getElementById('no-results').textContent = 'An error occurred while processing your search. Please try again later.';
+                        });
+                };
+            }
+            
+            // Handle admin panel buttons
+            const adminToggle = document.getElementById('admin-toggle');
+            const adminModal = new bootstrap.Modal(document.getElementById('adminModal'));
+            
+            if (adminToggle) {
+                adminToggle.addEventListener('click', () => {
+                    adminModal.show();
+                });
+            }
+            
+            // Rebuild index button
+            const rebuildIndexBtn = document.getElementById('rebuild-index-btn');
+            if (rebuildIndexBtn) {
+                rebuildIndexBtn.addEventListener('click', async () => {
+                    const statusElem = document.getElementById('rebuild-status');
+                    statusElem.style.display = 'block';
+                    statusElem.innerHTML = '<div class="alert alert-info">Rebuilding index, please wait...</div>';
+                    rebuildIndexBtn.disabled = true;
+                    
+                    try {
+                        const result = await window.apiClient.performAdminOperation('rebuild-index');
+                        if (result.status === 'success') {
+                            statusElem.innerHTML = `<div class="alert alert-success">Success! Index rebuilt in ${result.time_taken} seconds</div>`;
+                        } else {
+                            statusElem.innerHTML = `<div class="alert alert-danger">Error: ${result.message}</div>`;
+                        }
+                    } catch (error) {
+                        statusElem.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                    } finally {
+                        rebuildIndexBtn.disabled = false;
+                    }
+                });
+            }
+            
+            // Clear cache button
+            const clearCacheBtn = document.getElementById('clear-cache-btn');
+            if (clearCacheBtn) {
+                clearCacheBtn.addEventListener('click', async () => {
+                    const statusElem = document.getElementById('cache-status');
+                    statusElem.style.display = 'block';
+                    statusElem.innerHTML = '<div class="alert alert-info">Clearing cache, please wait...</div>';
+                    clearCacheBtn.disabled = true;
+                    
+                    try {
+                        const result = await window.apiClient.performAdminOperation('clear-embedding-cache');
+                        if (result.status === 'success') {
+                            statusElem.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                        } else {
+                            statusElem.innerHTML = `<div class="alert alert-danger">Error: ${result.message}</div>`;
+                        }
+                    } catch (error) {
+                        statusElem.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                    } finally {
+                        clearCacheBtn.disabled = false;
+                    }
+                });
+            }
+            
+            // Refresh stats button
+            const refreshStatsBtn = document.getElementById('refresh-stats-btn');
+            if (refreshStatsBtn) {
+                refreshStatsBtn.addEventListener('click', async () => {
+                    const statsElem = document.getElementById('index-stats');
+                    statsElem.innerHTML = '<p>Loading index statistics...</p>';
+                    refreshStatsBtn.disabled = true;
+                    
+                    try {
+                        const stats = await window.apiClient.getIndexStats();
+                        let html = '<table class="table table-bordered">';
+                        html += '<tr><th>Property</th><th>Value</th></tr>';
+                        
+                        for (const [key, value] of Object.entries(stats)) {
+                            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            html += `<tr><td>${displayKey}</td><td>${value}</td></tr>`;
+                        }
+                        
+                        html += '</table>';
+                        statsElem.innerHTML = html;
+                    } catch (error) {
+                        statsElem.innerHTML = `<div class="alert alert-danger">Error loading stats: ${error.message}</div>`;
+                    } finally {
+                        refreshStatsBtn.disabled = false;
+                    }
+                });
+                
+                // Load stats on modal open
+                document.getElementById('adminModal').addEventListener('shown.bs.modal', () => {
+                    refreshStatsBtn.click();
+                });
+            }
+        });
+    </script>
+</body>
+</html>
