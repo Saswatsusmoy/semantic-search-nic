@@ -4,8 +4,8 @@ faiss-cpu
 numpy
 sentence-transformers
 python-dotenv
-torch
-transformers
+torch==2.1.0
+transformers==4.35.0
 googletrans
 
 # FastAPI dependencies
@@ -19,8 +19,9 @@ flask
 jinja2
 
 # Utilities
-tqdm
+tqdm==4.66.1
 loguru
 diskcache
 pyspellchecker
 sounddevice
+pandas==2.1.1
