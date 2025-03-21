@@ -38,65 +38,41 @@ This application provides an intuitive interface for searching India's National 
 
 ## 🛠️ Installation and Setup
 
-### Prerequisites
+1. Clone the repository
+   ```bash
+   git clone https://github.com/yourusername/semantic-search-nic.git
+   cd semantic-search-nic
+   ```
 
-- Python 3.7 or higher
-- MongoDB Atlas account (or local MongoDB installation)
-- Git (optional)
+2. Create and activate a virtual environment
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-### Step 1: Get the Code
+3. Install dependencies
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Clone the repository or download the source code:
+4. Set up your MongoDB database
+   - Create a MongoDB Atlas account or use an existing one
+   - Create a database named "NIC_Database" with a collection "NIC_Codes"
+   - Import your NIC code data with embeddings
 
-```bash
-git clone <repository-url>
-cd semantic-search-nic
-```
+5. Create a `.env` file with your database connection details
+   ```
+   MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/
+   DB_NAME=NIC_Database
+   COLLECTION_NAME=NIC_Codes
+   ```
 
-### Step 2: Create a Virtual Environment
+6. Run the application
+   ```bash
+   python app.py
+   ```
 
-```bash
-# Create a virtual environment
-python -m venv venv
-
-# Activate it (Windows)
-venv\Scripts\activate
-
-# Activate it (macOS/Linux)
-source venv/bin/activate
-```
-
-### Step 3: Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Step 4: Configure Environment Variables
-
-Create a `.env` file in the project root directory with your MongoDB connection details:
-
-```env
-MONGO_URI="mongodb+srv://username:password@your-cluster.mongodb.net/"
-```
-
-### Step 5: Generate or Update Vector Embeddings
-
-If you're starting with a new database, run:
-
-```bash
-python vector_embeddings_subclasses.py
-```
-
-This will create embeddings for all documents in your database and build the FAISS index.
-
-### Step 6: Run the Application
-
-```bash
-python semantic_search_app.py
-```
-
-Navigate to `http://127.0.0.1:5000/` in your browser to use the application.
+7. Open your browser and navigate to `http://localhost:5000`
 
 ## 🔄 Using FAISS for Semantic Search
 
@@ -119,6 +95,7 @@ FAISS (Facebook AI Similarity Search) is a library that enables efficient simila
 Access the admin panel by clicking "Admin" in the footer:
 
 - **Rebuild Index**: Manually rebuild the FAISS index if you've updated the database
+- **Clear Cache**: Clear the embedding cache to free memory and disk space
 - **Index Statistics**: View information about the current FAISS index (size, dimensions, etc.)
 
 ## 📊 Performance Considerations

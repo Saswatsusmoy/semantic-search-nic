@@ -1,10 +1,11 @@
-flask
-pymongo
-sentence-transformers
-numpy
+flask==2.0.1
+pymongo==4.1.1
+sentence-transformers==2.2.0
+numpy==1.21.4
 scipy
-python-dotenv
-faiss-cpu
+python-dotenv==0.19.2
+faiss-cpu==1.7.2
 tqdm
 torch
 pandas
+bson==0.5.10

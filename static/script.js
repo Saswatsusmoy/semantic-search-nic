@@ -111,6 +111,33 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Clear embedding cache functionality
+    const clearCacheBtn = document.getElementById('clear-cache-btn');
+    const clearCacheStatus = document.getElementById('clear-cache-status');
+    
+    if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', function() {
+            clearCacheStatus.style.display = 'block';
+            clearCacheStatus.innerHTML = '<div class="alert alert-info">Clearing embedding cache...</div>';
+            clearCacheBtn.disabled = true;
+            
+            fetch('/clear-embedding-cache', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    clearCacheStatus.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                } else {
+                    clearCacheStatus.innerHTML = `<div class="alert alert-danger">Error: ${data.message}</div>`;
+                }
+                clearCacheBtn.disabled = false;
+            })
+            .catch(error => {
+                clearCacheStatus.innerHTML = `<div class="alert alert-danger">Error: ${error}</div>`;
+                clearCacheBtn.disabled = false;
+            });
+        });
+    }
+    
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
