@@ -6,6 +6,7 @@ sentence-transformers
 python-dotenv
 torch
 transformers
+googletrans
 
 # FastAPI dependencies
 fastapi
