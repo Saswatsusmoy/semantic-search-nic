@@ -4,6 +4,8 @@ faiss-cpu
 numpy
 sentence-transformers
 python-dotenv
+torch
+transformers
 
 # FastAPI dependencies
 fastapi
@@ -20,3 +22,4 @@ tqdm
 loguru
 diskcache
 pyspellchecker
+sounddevice
