@@ -24,45 +24,83 @@ app = Flask(__name__)
 # Initialize the SentenceTransformer model
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Get MongoDB connection string from environment
-connection_string = os.environ.get("MONGO_URI")
-if not connection_string:
-    logger.warning("MONGO_URI not found in environment variables. Set this in your .env file.")
+# Path to local JSON file
+json_file_path = os.path.join(os.path.dirname(__file__), "output.json")
 
 # Initialize the FAISS index manager
-faiss_manager = FAISSIndexManager(connection_string)
+faiss_manager = FAISSIndexManager()  # No need for connection string now
+
+# Global variable to store data from JSON file
+json_data = []
+
+def load_json_data():
+    """
+    Load data from local JSON file
+    
+    Returns:
+        list: List of documents from the JSON file
+    """
+    global json_data
+    try:
+        if os.path.exists(json_file_path):
+            with open(json_file_path, 'r', encoding='utf-8') as file:
+                json_data = json.load(file)
+            logger.info(f"Successfully loaded {len(json_data)} documents from {json_file_path}")
+            return json_data
+        else:
+            logger.error(f"JSON file not found: {json_file_path}")
+            return []
+    except Exception as e:
+        logger.error(f"Error loading JSON file: {str(e)}")
+        logger.error(traceback.format_exc())
+        return []
 
 def connect_to_mongodb():
     """
-    Connect to MongoDB Atlas and return the client and collection objects.
+    Load data from local JSON file instead of connecting to MongoDB
+    
+    Returns:
+        tuple: (None, data_accessor) where data_accessor provides MongoDB-like functionality
     """
     try:
-        # MongoDB Atlas connection parameters from environment
-        connection_string = os.environ.get("MONGO_URI")
-        if not connection_string:
-            logger.error("MongoDB connection string not found in environment variables")
-            raise ValueError("MONGO_URI not set in environment variables")
+        # Ensure data is loaded
+        if not json_data:
+            load_json_data()
             
-        database_name = os.environ.get("DB_NAME", "NIC_Database")
-        collection_name = os.environ.get("COLLECTION_NAME", "NIC_Codes")
-        
-        # Connect to MongoDB Atlas with timeout settings
-        client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
-        # Test connection explicitly
-        client.server_info()
-        
-        db = client[database_name]
-        collection = db[collection_name]
-        logger.info(f"Successfully connected to MongoDB Atlas: {database_name}.{collection_name}")
-        return client, collection
-    except pymongo.errors.ServerSelectionTimeoutError as e:
-        logger.error(f"MongoDB server selection timeout: {str(e)}")
-        raise
-    except pymongo.errors.ConnectionFailure as e:
-        logger.error(f"MongoDB connection failure: {str(e)}")
-        raise
+        # Create a simple class that mimics MongoDB collection functionality
+        class LocalDataAccessor:
+            def find(self, query=None, projection=None):
+                """Mimic MongoDB find() function"""
+                results = []
+                for doc in json_data:
+                    # Simple query matching
+                    if query:
+                        # Handle _id query
+                        if "_id" in query and "$in" in query["_id"]:
+                            id_list = [str(id) for id in query["_id"]["$in"]]
+                            if str(doc.get("_id")) not in id_list:
+                                continue
+                        # Handle field exists query
+                        for field, value in query.items():
+                            if isinstance(value, dict) and "$exists" in value:
+                                if value["$exists"] and field not in doc:
+                                    continue
+                    
+                    # Handle projection
+                    if projection:
+                        result = {}
+                        for field, include in projection.items():
+                            if include and field in doc:
+                                result[field] = doc[field]
+                        results.append(result)
+                    else:
+                        results.append(doc)
+                return results
+                
+        logger.info(f"Using local data accessor with {len(json_data)} documents")
+        return None, LocalDataAccessor()
     except Exception as e:
-        logger.error(f"Failed to connect to MongoDB Atlas: {str(e)}")
+        logger.error(f"Failed to set up local data accessor: {str(e)}")
         logger.error(traceback.format_exc())
         raise
 
@@ -102,7 +140,7 @@ def perform_semantic_search(query, collection, top_n=10, search_mode="standard")
     
     Args:
         query (str): The search query
-        collection: MongoDB collection
+        collection: Local data accessor that mimics MongoDB collection
         top_n (int): Number of results to return
         search_mode (str): Search mode - "standard", "strict", or "relaxed"
         
@@ -161,12 +199,12 @@ def perform_semantic_search(query, collection, top_n=10, search_mode="standard")
             return [], metrics
         
         # Get document IDs and similarity scores
-        # In cosine similarity, scores range from -1 to 1, with 1 being perfect similarity
-        doc_ids = [ObjectId(doc_id) for doc_id, _ in search_results]
-        similarity_dict = {str(doc_id): sim for doc_id, sim in search_results}
+        doc_ids = [doc_id for doc_id, _ in search_results]
+        similarity_dict = {doc_id: sim for doc_id, sim in search_results}
         
-        # Fetch documents from MongoDB
-        documents = list(collection.find({"_id": {"$in": doc_ids}}))
+        # Fetch documents from local data
+        all_documents = collection.find()
+        documents = [doc for doc in all_documents if str(doc.get("_id")) in doc_ids]
         logger.info(f"Found {len(documents)} documents from FAISS search results")
         metrics["results_count"] = len(documents)
         
@@ -240,7 +278,6 @@ def index():
 @app.route('/search', methods=['POST'])
 def search():
     """Handle search query and return results"""
-    client = None
     try:
         # Get query from request
         query = request.form.get('query', '')
@@ -253,8 +290,8 @@ def search():
         
         logger.info(f"Processing search query: '{query}' (mode: {search_mode}, results: {result_count})")
         
-        # Connect to MongoDB
-        client, collection = connect_to_mongodb()
+        # Get local data instead of MongoDB connection
+        _, collection = connect_to_mongodb()
         
         # Perform semantic search with cosine similarity
         results, metrics = perform_semantic_search(
@@ -289,19 +326,15 @@ def search():
         logger.error(error_msg)
         logger.error(traceback.format_exc())
         return jsonify({"error": error_msg, "results": []})
-    finally:
-        # Ensure MongoDB connection is closed even if an exception occurs
-        if client:
-            try:
-                client.close()
-                logger.info("MongoDB connection closed")
-            except Exception as e:
-                logger.error(f"Error closing MongoDB connection: {str(e)}")
 
 @app.route('/rebuild-index', methods=['POST'])
 def rebuild_index():
     """Admin endpoint to rebuild the FAISS index"""
     try:
+        # Make sure we have the data loaded
+        if not json_data:
+            load_json_data()
+            
         success = faiss_manager.build_index(force_rebuild=True)
         if success:
             return jsonify({"status": "success", "message": "Index rebuilt successfully with cosine similarity"})
@@ -342,6 +375,10 @@ def get_index_stats():
         return jsonify({"status": "error", "message": error_msg})
 
 if __name__ == '__main__':
+    # Load the JSON data on startup
+    logger.info("Loading data from JSON file...")
+    load_json_data()
+    
     # Load the FAISS index on startup
     logger.info("Loading FAISS index...")
     success = faiss_manager.load_index()

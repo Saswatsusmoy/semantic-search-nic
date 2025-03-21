@@ -12,6 +12,7 @@ from pymongo import MongoClient
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+import json
 
 # Load environment variables
 load_dotenv()
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class FAISSIndexManager:
     def __init__(self, connection_string=None, database_name=None, collection_name=None):
         # Use provided values or fall back to environment variables
-        self.connection_string = connection_string or os.environ.get("MONGO_URI")
+        self.connection_string = connection_string
         self.database_name = database_name or os.environ.get("DB_NAME", "NIC_Database")
         self.collection_name = collection_name or os.environ.get("COLLECTION_NAME", "NIC_Codes")
         
@@ -31,42 +32,66 @@ class FAISSIndexManager:
         self.id_map = None  # Maps FAISS index positions to MongoDB document IDs
         self.index_path = os.path.join(os.path.dirname(__file__), "faiss_index")
         self.id_map_path = os.path.join(os.path.dirname(__file__), "faiss_id_map.pkl")
-    
+        self.json_file_path = os.path.join(os.path.dirname(__file__), "output.json")
+
     def connect_to_mongodb(self):
         """Connect to MongoDB and return the collection"""
+        # For local JSON, we'll return a simple accessor class instead
         try:
-            if not self.connection_string:
-                raise ValueError("MongoDB connection string not provided and not found in environment variables")
+            # Load JSON data
+            with open(self.json_file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
                 
-            client = MongoClient(self.connection_string, serverSelectionTimeoutMS=5000)
-            db = client[self.database_name]
-            collection = db[self.collection_name]
-            return client, collection
+            class LocalCollection:
+                def __init__(self, data):
+                    self.data = data
+                    
+                def find(self, query=None, projection=None):
+                    results = []
+                    for doc in self.data:
+                        # Simple filtering for Vector-Embedding_SubClass exists query
+                        if query and "$exists" in query.get("Vector-Embedding_SubClass", {}):
+                            if "Vector-Embedding_SubClass" not in doc:
+                                continue
+                                
+                        # Handle projection
+                        if projection:
+                            result = {}
+                            include_doc = True
+                            for field, include in projection.items():
+                                if include and field in doc:
+                                    result[field] = doc[field]
+                                elif field == "_id" and include:
+                                    # Ensure each document has an _id
+                                    result["_id"] = doc.get("_id", str(hash(str(doc))))
+                            if include_doc:
+                                results.append(result)
+                        else:
+                            # Make sure each document has an _id
+                            if "_id" not in doc:
+                                doc["_id"] = str(hash(str(doc)))
+                            results.append(doc)
+                    return results
+                    
+            logger.info(f"Using local JSON data with {len(data)} documents")
+            # Return None for client and the collection-like accessor
+            return None, LocalCollection(data)
         except Exception as e:
-            logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            logger.error(f"Failed to load JSON data: {str(e)}")
             raise
-    
+
     def normalize_vectors(self, vectors):
-        """
-        Normalize vectors to unit length for cosine similarity
-        
-        Args:
-            vectors (np.ndarray): Vectors to normalize
-            
-        Returns:
-            np.ndarray: Normalized vectors
-        """
-        # Calculate the L2 norm of each vector
+        """Normalize vectors for cosine similarity"""
+        # Compute L2 norms
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-        # Avoid division by zero
-        norms = np.maximum(norms, 1e-10)
-        # Normalize each vector to have unit length
-        normalized_vectors = vectors / norms
-        return normalized_vectors
-    
+        # Replace zero norms with tiny value to avoid division by zero
+        norms[norms == 0] = 1e-10
+        # Normalize
+        return vectors / norms
+
     def build_index(self, force_rebuild=False):
         """
-        Build a FAISS index from MongoDB embeddings using cosine similarity
+        Build a FAISS index from JSON file embeddings using cosine similarity
         
         Args:
             force_rebuild (bool): If True, rebuild the index even if it exists
@@ -90,61 +115,71 @@ class FAISSIndexManager:
             
             # Get documents and extract embeddings
             documents = list(collection.find(query, projection))
-            logger.info(f"Found {len(documents)} documents with embeddings")
             
             if not documents:
-                logger.error("No documents found with embeddings")
+                logger.error("No documents with Vector-Embedding_SubClass found in JSON data")
                 return False
+                
+            logger.info(f"Building index with {len(documents)} documents")
             
-            # Extract embeddings and document IDs
-            embeddings = []
+            # Extract document IDs and embeddings
             doc_ids = []
+            embeddings = []
             
             for doc in documents:
-                if "Vector-Embedding_SubClass" in doc and isinstance(doc["Vector-Embedding_SubClass"], list):
-                    embeddings.append(doc["Vector-Embedding_SubClass"])
-                    doc_ids.append(str(doc["_id"]))
+                if "Vector-Embedding_SubClass" in doc and doc["Vector-Embedding_SubClass"]:
+                    try:
+                        # Handle both list and string representations
+                        if isinstance(doc["Vector-Embedding_SubClass"], str):
+                            # Parse string representation of list
+                            embedding = json.loads(doc["Vector-Embedding_SubClass"].replace("'", '"'))
+                        else:
+                            embedding = doc["Vector-Embedding_SubClass"]
+                            
+                        # Ensure embedding is a list of floats
+                        embedding = [float(x) for x in embedding]
+                        
+                        # Add to our lists
+                        embeddings.append(embedding)
+                        doc_ids.append(str(doc["_id"]))
+                    except (ValueError, json.JSONDecodeError) as e:
+                        logger.error(f"Error parsing embedding for document {doc['_id']}: {e}")
+                        continue
             
             if not embeddings:
                 logger.error("No valid embeddings found in documents")
                 return False
                 
             # Convert to numpy array
-            embeddings_array = np.array(embeddings).astype('float32')
+            embeddings_array = np.array(embeddings, dtype=np.float32)
             
             # Normalize vectors for cosine similarity
             normalized_embeddings = self.normalize_vectors(embeddings_array)
-            logger.info(f"Normalized {len(normalized_embeddings)} vectors for cosine similarity")
             
-            # Get embedding dimension
-            dimension = normalized_embeddings.shape[1]
-            logger.info(f"Building index with {len(normalized_embeddings)} vectors of dimension {dimension}")
+            # Get dimensionality from the data
+            d = normalized_embeddings.shape[1]
             
-            # Create FAISS index for cosine similarity (inner product on normalized vectors)
-            self.index = faiss.IndexFlatIP(dimension)  # Inner product for cosine similarity
-            self.index = faiss.IndexIDMap(self.index)
-            
-            # Generate sequential IDs for the index
-            ids = np.arange(len(normalized_embeddings), dtype=np.int64)
+            # Create a FAISS index for inner product (cosine similarity with normalized vectors)
+            self.index = faiss.IndexFlatIP(d)
             
             # Add vectors to the index
-            self.index.add_with_ids(normalized_embeddings, ids)
+            self.index.add(normalized_embeddings)
             
-            # Create ID mapping (FAISS index position -> MongoDB document ID)
-            self.id_map = {int(idx): doc_id for idx, doc_id in enumerate(doc_ids)}
+            # Store mapping from index positions to document IDs
+            self.id_map = doc_ids
             
-            logger.info(f"Built FAISS index with {self.index.ntotal} vectors using cosine similarity")
+            # Save the index and mapping to disk
+            self.save_index()
             
-            # Save the index and ID mapping
-            return self.save_index()
+            logger.info(f"FAISS index built successfully with {len(doc_ids)} vectors")
+            return True
             
         except Exception as e:
             logger.error(f"Error building FAISS index: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
-        finally:
-            if client:
-                client.close()
-    
+
     def save_index(self):
         """Save the FAISS index and ID mapping to disk"""
         try:
