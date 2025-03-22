@@ -278,37 +278,68 @@ document.addEventListener('DOMContentLoaded', function() {
         noValidResults.style.display = 'none';
         noOtherResults.style.display = 'none';
         
-        // Make API request
-        fetch('/search', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                query: query,
-                count: resultCount,
-                mode: searchMode,
-                metrics: showMetrics,
-                language: currentLanguage
+        // For Hindi, use JSON format with the language parameter
+        if (currentLanguage === 'hindi') {
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    query: query,
+                    count: resultCount,
+                    mode: searchMode,
+                    metrics: showMetrics,
+                    language: 'hindi'
+                })
             })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Process search results
-            processSearchResults(data, showMetrics);
-        })
-        .catch(error => {
-            // Handle errors
-            console.error('Search error:', error);
-            loadingSpinner.style.display = 'none';
-            noResults.textContent = 'An error occurred while processing your request.';
-            noResults.style.display = 'block';
-        });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Process search results
+                processSearchResults(data, showMetrics);
+            })
+            .catch(error => {
+                // Handle errors
+                console.error('Search error:', error);
+                loadingSpinner.style.display = 'none';
+                noResults.textContent = 'An error occurred while processing your request.';
+                noResults.style.display = 'block';
+            });
+        } else {
+            // For English searches, keep the existing form data approach
+            const formData = new FormData();
+            formData.append('query', query);
+            formData.append('result_count', resultCount);
+            formData.append('search_mode', searchMode);
+            formData.append('show_metrics', showMetrics);
+            
+            fetch('/search', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Process search results
+                processSearchResults(data, showMetrics);
+            })
+            .catch(error => {
+                // Handle errors
+                console.error('Search error:', error);
+                loadingSpinner.style.display = 'none';
+                noResults.textContent = 'An error occurred while processing your request.';
+                noResults.style.display = 'block';
+            });
+        }
     });
 
     function processSearchResults(data, showMetrics) {
