@@ -2,6 +2,7 @@ import sounddevice as sd
 import numpy as np
 from scipy.io.wavfile import write
 import threading
+from transcription import transcribe_audio_file
 
 sample_rate = 16000
 channels = 1
@@ -25,16 +26,16 @@ def start_recording():
         recording_thread = threading.Thread(target=_record_loop)
         recording_thread.start()
 
-def stop_recording(filename="output.wav"):
-    global recording, frames, recording_thread
-    if recording:
-        recording = False
+def stop_recording(filename="Data Processing/output.wav"):
+    global recording, frames
+    recording = False
+    if recording_thread:
         recording_thread.join()
-        audio = np.concatenate(frames, axis=0)
-        write(filename, sample_rate, audio)
-        print(f"Recording stopped. Saved to {filename}")
-
+    audio_data = np.concatenate(frames, axis=0)
+    write(filename, sample_rate, audio_data)
+    frames = []
+    return transcribe_audio_file(filename)
 
 # start_recording()
 # input("Press Enter to stop recording")
-# stop_recording("my_recording.wav")
+# stop_recording()

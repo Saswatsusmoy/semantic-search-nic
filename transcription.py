@@ -29,9 +29,9 @@ def transcribe_audio_file(audio_file_path):
         transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)
     return transcription[0].strip()
 
-start = time.time()
-file_path = "C:/Users/HP/Downloads/Hack-the-future-hindi.wav"
-results = transcribe_audio_file(file_path)
-print("Transcription:", results)
-print("Time taken: {:.2f} seconds".format(time.time()-start))
+# start = time.time()
+# file_path = "C:/Users/HP/Downloads/Hack-the-future-hindi.wav"
+# results = transcribe_audio_file(file_path)
+# print("Transcription:", results)
+# print("Time taken: {:.2f} seconds".format(time.time()-start))
 

@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 # Import custom modules
 from faiss_index_manager import FAISSIndexManager
 from vector_embeddings_manager import cached_get_embedding, get_embeddings_manager
+from recording import start_recording, stop_recording  # Import recording functions
 
 # Load environment variables
 load_dotenv()
@@ -236,5 +237,18 @@ def clear_embedding_cache():
             "message": f"Error: {str(e)}"
         })
 
+@app.route('/api/start_recording', methods=['POST'])
+def start_recording_endpoint():
+    start_recording()
+    return jsonify({"status": "success", "message": "Recording started"})
+
+@app.route('/api/stop_recording', methods=['POST'])
+def stop_recording_endpoint():
+    output_filename = "Data Processing/output.wav"
+    transcript = stop_recording(output_filename)
+    return jsonify({"status": "success", "message": "Recording stopped", "transcript": transcript})
+
 if __name__ == "__main__":
+    # Ensure the output directory exists
+    os.makedirs("Data Processing", exist_ok=True)
     app.run(debug=True, host='0.0.0.0', port=5000)

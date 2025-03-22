@@ -412,4 +412,39 @@ document.addEventListener('DOMContentLoaded', function() {
             noResults.textContent = 'An error occurred while processing your search. Please try again later.';
         });
     });
+
+    let isRecording = false;
+
+    function toggleRecording() {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    }
+
+    function startRecording() {
+        fetch('/api/start_recording', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    isRecording = true;
+                    document.getElementById('mic-button').innerText = '⏹️';
+                }
+            });
+    }
+
+    function stopRecording() {
+        fetch('/api/stop_recording', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    isRecording = false;
+                    document.getElementById('mic-button').innerText = '🎤';
+                    document.getElementById('search-input').value = data.transcript;
+                }
+            });
+    }
+
+    document.getElementById('mic-button').addEventListener('click', toggleRecording);
 });

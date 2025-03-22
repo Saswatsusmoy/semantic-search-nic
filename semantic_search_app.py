@@ -12,6 +12,7 @@ from faiss_index_manager import FAISSIndexManager
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
 # from cleaning import clean_sentence  # Added import for clean_sentence function
+from recording import start_recording, stop_recording  # Import recording functions
 
 # Load environment variables
 load_dotenv()
@@ -377,6 +378,17 @@ def get_index_stats():
         logger.error(error_msg)
         return jsonify({"status": "error", "message": error_msg})
 
+@app.route('/api/start_recording', methods=['POST'])
+def start_recording_endpoint():
+    start_recording()
+    return jsonify({"status": "success", "message": "Recording started"})
+
+@app.route('/api/stop_recording', methods=['POST'])
+def stop_recording_endpoint():
+    output_filename = "Data Processing/output.wav"
+    transcript = stop_recording(output_filename)
+    return jsonify({"status": "success", "message": "Recording stopped", "transcript": transcript})
+
 if __name__ == '__main__':
     # Load the JSON data on startup
     logger.info("Loading data from JSON file...")
@@ -389,4 +401,6 @@ if __name__ == '__main__':
         logger.warning("FAISS index not found or could not be loaded. Building index...")
         faiss_manager.build_index()
     
-    app.run(debug=True)
+    # Ensure the output directory exists
+    os.makedirs("Data Processing", exist_ok=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
