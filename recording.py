@@ -12,10 +12,15 @@ recording_thread = None
 
 def _record_loop():
     global recording, frames
-    while recording:
-        data = sd.rec(int(0.5 * sample_rate), samplerate=sample_rate, channels=channels)
-        sd.wait()
-        frames.append(data)
+    with sd.InputStream(samplerate=sample_rate, channels=channels, callback=_callback):
+        while recording:
+            sd.sleep(100)  # Keep thread alive without blocking
+
+def _callback(indata, frame_count, time_info, status):
+    """Callback function to continuously receive audio data."""
+    if status:
+        print(status)
+    frames.append(indata.copy())
 
 def start_recording():
     global recording, frames, recording_thread
@@ -23,7 +28,7 @@ def start_recording():
         print("Recording started.")
         recording = True
         frames = []
-        recording_thread = threading.Thread(target=_record_loop)
+        recording_thread = threading.Thread(target=_record_loop, daemon=True)
         recording_thread.start()
 
 def stop_recording(filename="Data Processing/output.wav"):
@@ -37,7 +42,3 @@ def stop_recording(filename="Data Processing/output.wav"):
         transcript = transcribe_audio_file(filename)
         print(transcript)
         return transcript
-
-# start_recording()
-# input("Press Enter to stop recording")
-# stop_recording()

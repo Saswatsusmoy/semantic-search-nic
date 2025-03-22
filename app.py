@@ -16,7 +16,11 @@ from dotenv import load_dotenv
 # Import custom modules
 from faiss_index_manager import FAISSIndexManager
 from vector_embeddings_manager import cached_get_embedding, get_embeddings_manager
+<<<<<<< HEAD
+from recording import start_recording, stop_recording  # Import recording functions
+=======
 import recording
+>>>>>>> 6ac000741034e68e46a29bb6be620b3aa94a4ec9
 
 # Add imports for Hindi embeddings
 from transformers import AutoTokenizer, AutoModel
@@ -403,13 +407,21 @@ def clear_embedding_cache():
 
 @app.route('/api/start_recording', methods=['POST'])
 def start_recording_endpoint():
+<<<<<<< HEAD
+    start_recording()
+=======
     recording.start_recording()
+>>>>>>> 6ac000741034e68e46a29bb6be620b3aa94a4ec9
     return jsonify({"status": "success", "message": "Recording started"})
 
 @app.route('/api/stop_recording', methods=['POST'])
 def stop_recording_endpoint():
     output_filename = "Data Processing/output.wav"
+<<<<<<< HEAD
+    transcript = stop_recording(output_filename)
+=======
     transcript = recording.stop_recording(output_filename)
+>>>>>>> 6ac000741034e68e46a29bb6be620b3aa94a4ec9
     return jsonify({"status": "success", "message": "Recording stopped", "transcript": transcript})
 
 @app.route('/api/languages', methods=['GET'])
