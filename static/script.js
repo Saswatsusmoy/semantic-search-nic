@@ -138,6 +138,115 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Language management
+    const langButtons = document.querySelectorAll('.btn-language');
+    let currentLanguage = localStorage.getItem('selectedLanguage') || 'english';
+    
+    // Set initial language
+    setActiveLanguage(currentLanguage);
+    applyTranslations(currentLanguage);
+    
+    // Language button click handlers
+    langButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const lang = this.getAttribute('data-lang');
+            setActiveLanguage(lang);
+            applyTranslations(lang);
+            localStorage.setItem('selectedLanguage', lang);
+            
+            // Update language on server if API exists
+            fetch('/api/set-language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ language: lang })
+            })
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error updating language:', error);
+            });
+            
+            // Log for debugging
+            console.log('Language changed to:', lang);
+        });
+    });
+    
+    function setActiveLanguage(lang) {
+        const langButtons = document.querySelectorAll('.btn-language');
+        langButtons.forEach(btn => {
+            if (btn.getAttribute('data-lang') === lang) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+    
+    function applyTranslations(lang) {
+        const translations = {
+            'english': {
+                'header': 'NIC Code Semantic Search',
+                'subtitle': 'Search for industry codes and descriptions using natural language',
+                'search_placeholder': 'Describe a business activity or industry...',
+                'search_button': 'Search',
+                'advanced': 'Advanced Search Options',
+                'results-to-show': 'Results to show',
+                'search-mode': 'Search mode',
+                'standard': 'Standard',
+                'strict': 'Strict',
+                'relaxed': 'Relaxed',
+                'show-metrics': 'Show performance metrics',
+                'searching': 'Searching for matching NIC codes...',
+                'no_results': 'No results found. Try a different search term.',
+                'error_message': 'An error occurred while processing your search. Please try again later.',
+                'examples': 'Example searches: "bakery", "software development", "wheat farming", "manufacture of plastic products"'
+            },
+            'hindi': {
+                'header': 'एनआईसी कोड सिमेंटिक सर्च',
+                'subtitle': 'प्राकृतिक भाषा का उपयोग करके उद्योग कोड और विवरण खोजें',
+                'search_placeholder': 'व्यावसायिक गतिविधि या उद्योग का वर्णन करें...',
+                'search_button': 'खोज',
+                'advanced': 'उन्नत खोज विकल्प',
+                'results-to-show': 'दिखाने के लिए परिणाम',
+                'search-mode': 'खोज मोड',
+                'standard': 'मानक',
+                'strict': 'सख्त',
+                'relaxed': 'आराम',
+                'show-metrics': 'प्रदर्शन मेट्रिक्स दिखाएं',
+                'searching': 'मिलान एनआईसी कोड खोज रहा है...',
+                'no_results': 'कोई परिणाम नहीं मिला। कोई अलग खोज शब्द आज़माएं।',
+                'error_message': 'आपकी खोज को संसाधित करते समय एक त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।',
+                'examples': 'उदाहरण खोज: "बेकरी", "सॉफ्टवेयर विकास", "गेहूं की खेती", "प्लास्टिक उत्पादों का निर्माण"'
+            }
+        };
+        
+        // Apply translations to elements with t-* classes
+        const dict = translations[lang] || translations['english'];
+        document.querySelectorAll('[class*="t-"]').forEach(elem => {
+            // Extract translation keys from class names (t-key)
+            const classes = elem.className.split(' ');
+            for (const cls of classes) {
+                if (cls.startsWith('t-')) {
+                    const key = cls.substring(2);
+                    if (dict[key]) {
+                        elem.textContent = dict[key];
+                    }
+                }
+            }
+        });
+        
+        // Update search placeholder
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.placeholder = dict.search_placeholder;
+        
+        // Apply RTL styling for Hindi if needed
+        document.body.classList.toggle('rtl-support', lang === 'hindi');
+        
+        // Set html lang attribute for better font rendering
+        document.documentElement.setAttribute('lang', lang);
+    }
+
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
         

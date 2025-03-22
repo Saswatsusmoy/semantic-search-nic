@@ -446,3 +446,61 @@ footer {
     font-weight: 500;
     letter-spacing: 0.025em;
 }
+
+/* Language toggle styling */
+.language-toggle {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    gap: 5px;
+    z-index: 100;
+}
+
+.btn-language {
+    padding: 5px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    color: #333;
+    margin: 0 3px;
+    font-size: 0.9rem;
+}
+
+.btn-language.active {
+    background-color: #4285f4;
+    color: white;
+    border-color: #4285f4;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* RTL (Right-to-Left) support for Hindi */
+.rtl-support {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Hindi language support */
+.rtl-support .search-container input[type="text"] {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 1.1rem;
+}
+
+/* Improve Hindi text rendering */
+html[lang="hindi"] body,
+.rtl-support {
+    font-family: 'Noto Sans', 'Arial', sans-serif;
+}
+
+/* Adjust size for Hindi characters */
+.rtl-support .result-card h4 {
+    font-size: 1.4rem;
+}
+
+.rtl-support .result-card p {
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
