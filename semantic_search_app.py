@@ -11,7 +11,6 @@ import time
 from faiss_index_manager import FAISSIndexManager
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
-
 from recording import start_recording, stop_recording  # Import recording functions
 from cleaning import correct_words  
 

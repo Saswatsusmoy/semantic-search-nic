@@ -6,11 +6,11 @@ import librosa
 lang = "en"
 #These models have to be downloaded when first time
 if lang == "en":
-    model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-english"
+    model_id = "Harveenchadha/vakyansh-wav2vec2-indian-english-enm-700"
 elif lang == "hi":
-    model_id = "ai4bharat/indicwav2vec-hindi"
-elif lang == "gu":
-    model_id = "Harveenchadha/vakyansh-wav2vec2-gujarati-gnm-100"
+    model_id = "Harveenchadha/vakyansh-wav2vec2-hindi-him-4200"
+elif lang == "ta":
+    model_id = "Harveenchadha/vakyansh-wav2vec2-tamil-tam-250"
     
 processor = Wav2Vec2Processor.from_pretrained(model_id, ignore_mismatched_sizes=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
