@@ -7,7 +7,8 @@ import os
 import time
 import json
 from typing import Dict, Any, List
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask_cors import CORS
 from pymongo import MongoClient
 from bson import ObjectId
 from dotenv import load_dotenv
@@ -15,12 +16,14 @@ from dotenv import load_dotenv
 # Import custom modules
 from faiss_index_manager import FAISSIndexManager
 from vector_embeddings_manager import cached_get_embedding, get_embeddings_manager
+import recording
 
 # Load environment variables
 load_dotenv()
 
 # Configure the application
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
+CORS(app)  # Allow cross-origin requests
 app.config['JSON_SORT_KEYS'] = False
 
 # Initialize MongoDB connection
@@ -97,7 +100,7 @@ def format_search_results(raw_results: List[tuple], mongo_collection) -> List[Di
 @app.route('/')
 def index():
     """Render the main search page"""
-    return render_template('index.html')
+    return send_from_directory('static', 'index.html')
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -236,5 +239,18 @@ def clear_embedding_cache():
             "message": f"Error: {str(e)}"
         })
 
+@app.route('/api/start_recording', methods=['POST'])
+def start_recording_endpoint():
+    recording.start_recording()
+    return jsonify({"status": "success", "message": "Recording started"})
+
+@app.route('/api/stop_recording', methods=['POST'])
+def stop_recording_endpoint():
+    output_filename = "Data Processing/output.wav"
+    transcript = recording.stop_recording(output_filename)
+    return jsonify({"status": "success", "message": "Recording stopped", "transcript": transcript})
+
 if __name__ == "__main__":
+    # Ensure the output directory exists
+    os.makedirs("Data Processing", exist_ok=True)
     app.run(debug=True, host='0.0.0.0', port=5000)
