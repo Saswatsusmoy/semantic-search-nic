@@ -247,6 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.documentElement.setAttribute('lang', lang);
     }
 
+    // Search form submission logic
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
@@ -258,269 +259,280 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchMode = searchModeSelect ? searchModeSelect.value : 'standard';
         const showMetrics = showPerformanceCheckbox ? showPerformanceCheckbox.checked : false;
         
+        // Get current language
+        const currentLanguage = localStorage.getItem('selectedLanguage') || 'english';
+        
         // Reset performance metrics display
         performanceMetrics.style.display = 'none';
         
         // Show loading spinner
         loadingSpinner.style.display = 'block';
+        
         // Hide results while loading
         resultsContainer.style.display = 'none';
+        
+        // Reset results display
         noResults.style.display = 'none';
+        validResultsList.innerHTML = '';
+        otherResultsList.innerHTML = '';
         noValidResults.style.display = 'none';
         noOtherResults.style.display = 'none';
         
-        // Clear previous results
-        validResultsList.innerHTML = '';
-        otherResultsList.innerHTML = '';
-        
-        // Create form data for the request
-        const formData = new FormData();
-        formData.append('query', query);
-        formData.append('result_count', resultCount);
-        formData.append('search_mode', searchMode);
-        formData.append('show_metrics', showMetrics);
-        
-        // Send search request
+        // Make API request
         fetch('/search', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: query,
+                count: resultCount,
+                mode: searchMode,
+                metrics: showMetrics,
+                language: currentLanguage
+            })
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error('Network response was not ok');
             }
             return response.json();
         })
         .then(data => {
-            // Hide loading spinner
-            loadingSpinner.style.display = 'none';
-            
-            // Show results container
-            resultsContainer.style.display = 'block';
-            
-            // Display performance metrics if requested and available
-            if (showMetrics && data.metrics) {
-                searchTimeSpan.textContent = data.metrics.total_time_ms;
-                indexTimeSpan.textContent = data.metrics.index_time_ms;
-                resultsCountSpan.textContent = data.metrics.results_count;
-                performanceMetrics.style.display = 'block';
-            }
-            
-            if (data.error) {
-                console.error("Search error:", data.error);
-                noResults.style.display = 'block';
-                noResults.textContent = `Error: ${data.error}. Please try again.`;
-                return;
-            }
-            
-            // Debug the data structure
-            console.log("Search results received:", data);
-            
-            const results = data.results || [];
-            
-            if (results.length === 0) {
-                noResults.style.display = 'block';
-                noResults.textContent = 'No matches found. Try a different search term.';
-                return;
-            }
-            
-            // Process and display results
-            let validResultsCount = 0;
-            let otherResultsCount = 0;
-            
-            results.forEach((result, index) => {
-                try {
-                    // Validate result object
-                    if (!result || typeof result !== 'object') {
-                        console.error(`Invalid result at index ${index}:`, result);
-                        return;
-                    }
-                    
-                    // Make sure similarity exists and is a number
-                    if (typeof result.similarity !== 'number') {
-                        console.error(`Invalid similarity score for result at index ${index}:`, result);
-                        result.similarity = 0;  // Set default value
-                    }
-                    
-                    // Get the subClass and class values and convert to string
-                    let subClass = result['Sub-Class'] || '';
-                    subClass = String(subClass).trim();
-                    
-                    let classVal = result.Class || '';
-                    classVal = String(classVal).trim();
-                    
-                    // For numeric display, try to convert code values to integers
-                    const formatAsInteger = (value) => {
-                        // If the value is numeric, remove decimals and return as integer
-                        const parsedValue = parseFloat(value);
-                        if (!isNaN(parsedValue)) {
-                            return Math.floor(parsedValue);
-                        }
-                        return value; // Return original value if not numeric
-                    };
-                    
-                    // Convert code values to integers where applicable
-                    const formattedSubClass = formatAsInteger(subClass);
-                    const formattedClass = formatAsInteger(classVal);
-                    const formattedGroup = formatAsInteger(result.Group || '');
-                    const formattedDivision = formatAsInteger(result.Division || '');
-                    
-                    // Create result card
-                    const resultCard = document.createElement('div');
-                    resultCard.className = 'result-card';
-                    resultCard.setAttribute('data-index', index);
-                    
-                    // Format similarity score as integer percentage (no decimal places)
-                    const similarityPercent = Math.round(result.similarity * 100);
-                    
-                    // Get badge color based on similarity
-                    let badgeColor = 'secondary';
-                    if (similarityPercent >= 90) badgeColor = 'success';
-                    else if (similarityPercent >= 70) badgeColor = 'primary';
-                    else if (similarityPercent >= 50) badgeColor = 'info';
-                    else if (similarityPercent >= 30) badgeColor = 'warning';
-                    else badgeColor = 'danger';
-                    
-                    // Safely get properties with fallbacks
-                    const section = result.Section || 'N/A';
-                    const division = result.Division || 'N/A';
-                    const group = result.Group || 'N/A';
-                    const description = result.Description || 'No description available';
-                    
-                    // Determine if this is a valid result (has non-empty, non-null, non-"nan" Sub-Class)
-                    const isValidSubClass = subClass && 
-                                          subClass !== 'N/A' && 
-                                          subClass.toLowerCase() !== 'nan' &&
-                                          subClass !== 'undefined' && 
-                                          subClass !== 'null';
-                    
-                    // Determine if this is a result with valid Class but invalid Sub-Class
-                    const hasValidClass = classVal && 
-                                        classVal !== 'N/A' && 
-                                        classVal.toLowerCase() !== 'nan' &&
-                                        classVal !== 'undefined' && 
-                                        classVal !== 'null';
-                    
-                    // Use Sub-Class as title for valid results, otherwise use Class
-                    const title = isValidSubClass ? formattedSubClass : (hasValidClass ? `Class: ${formattedClass}` : `Result #${index + 1}`);
-                    
-                    // Check if description is long enough to truncate
-                    const isTruncatable = description.length > 300;
-                    const truncatedClass = isTruncatable ? 'truncated' : '';
-                    
-                    // Prepare HTML for card content
-                    resultCard.innerHTML = `
-                        <div class="result-title">
-                            <h4>${title}</h4>
-                            <span class="badge bg-${badgeColor} similarity-badge">${similarityPercent}% Match</span>
-                        </div>
-                        <div>
-                            <span class="badge bg-primary section-badge">Section: ${section}</span>
-                        </div>
-                        
-                        <!-- Description right after the section -->
-                        <div class="description-text ${truncatedClass}">${description}</div>
-                        
-                        <div class="code-hierarchy">
-                            <div class="code-item">
-                                <span class="code-item-label">Division:</span> ${formattedDivision}
-                            </div>
-                            <div class="code-item">
-                                <span class="code-item-label">Group:</span> ${formattedGroup}
-                            </div>
-                            <div class="code-item">
-                                <span class="code-item-label">Class:</span> ${formattedClass}
-                            </div>
-                            <div class="code-item">
-                                <span class="code-item-label">Sub-Class:</span> ${isValidSubClass ? formattedSubClass : 'N/A'}
-                            </div>
-                        </div>
-                        
-                        <div class="detail-grid">
-                            ${isValidSubClass ? `
-                            <div class="detail-item">
-                                <div class="detail-label">Industry Code</div>
-                                <div class="detail-value">${formattedSubClass}</div>
-                            </div>
-                            ` : ''}
-                            <div class="detail-item">
-                                <div class="detail-label">Section</div>
-                                <div class="detail-value">${section}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Division</div>
-                                <div class="detail-value">${formattedDivision}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Group</div>
-                                <div class="detail-value">${formattedGroup}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Class</div>
-                                <div class="detail-value">${formattedClass}</div>
-                            </div>
-                            ${isValidSubClass ? `
-                            <div class="detail-item">
-                                <div class="detail-label">Sub-Class</div>
-                                <div class="detail-value">${formattedSubClass}</div>
-                            </div>
-                            ` : ''}
-                            <div class="detail-item">
-                                <div class="detail-label">Similarity Score</div>
-                                <div class="detail-value">${similarityPercent}%</div>
-                            </div>
-                        </div>
-                        
-                        <div class="expand-indicator">
-                            <span class="expand-text">Click to view more details <i class="expand-icon">▼</i></span>
-                            <span class="collapse-text">Click to collapse <i class="expand-icon">▼</i></span>
-                        </div>
-                    `;
-                    
-                    // Add click event listener to make card expandable
-                    resultCard.addEventListener('click', function(event) {
-                        // Toggle the expanded class
-                        this.classList.toggle('expanded');
-                    });
-                    
-                    // Add to appropriate container based on validity criteria
-                    if (isValidSubClass) {
-                        validResultsList.appendChild(resultCard);
-                        validResultsCount++;
-                    } else if (hasValidClass) {
-                        // Only add to other results if it has a valid Class but invalid Sub-Class
-                        otherResultsList.appendChild(resultCard);
-                        otherResultsCount++;
-                    } // If neither valid Sub-Class nor valid Class, don't show
-                    
-                } catch (err) {
-                    console.error(`Error rendering result at index ${index}:`, err);
-                }
-            });
-            
-            // Show appropriate messages if either column is empty
-            if (validResultsCount === 0) {
-                noValidResults.style.display = 'block';
-            }
-            
-            if (otherResultsCount === 0) {
-                noOtherResults.style.display = 'block';
-            }
-            
-            // If both columns are empty, show the main no results message
-            if (validResultsCount === 0 && otherResultsCount === 0) {
-                noResults.style.display = 'block';
-                noResults.textContent = 'No results found. Try a different search term.';
-            }
+            // Process search results
+            processSearchResults(data, showMetrics);
         })
         .catch(error => {
-            console.error('Error:', error);
+            // Handle errors
+            console.error('Search error:', error);
             loadingSpinner.style.display = 'none';
-            resultsContainer.style.display = 'block';
+            noResults.textContent = 'An error occurred while processing your request.';
             noResults.style.display = 'block';
-            noResults.textContent = 'An error occurred while processing your search. Please try again later.';
         });
     });
+
+    function processSearchResults(data, showMetrics) {
+        // Hide loading spinner
+        loadingSpinner.style.display = 'none';
+        
+        // Show results container
+        resultsContainer.style.display = 'block';
+        
+        // Display performance metrics if requested and available
+        if (showMetrics && data.metrics) {
+            searchTimeSpan.textContent = data.metrics.total_time_ms;
+            indexTimeSpan.textContent = data.metrics.index_time_ms;
+            resultsCountSpan.textContent = data.metrics.results_count;
+            performanceMetrics.style.display = 'block';
+        }
+        
+        if (data.error) {
+            console.error("Search error:", data.error);
+            noResults.style.display = 'block';
+            noResults.textContent = `Error: ${data.error}. Please try again.`;
+            return;
+        }
+        
+        // Debug the data structure
+        console.log("Search results received:", data);
+        
+        const results = data.results || [];
+        
+        if (results.length === 0) {
+            noResults.style.display = 'block';
+            noResults.textContent = 'No matches found. Try a different search term.';
+            return;
+        }
+        
+        // Process and display results
+        let validResultsCount = 0;
+        let otherResultsCount = 0;
+        
+        results.forEach((result, index) => {
+            try {
+                // Validate result object
+                if (!result || typeof result !== 'object') {
+                    console.error(`Invalid result at index ${index}:`, result);
+                    return;
+                }
+                
+                // Make sure similarity exists and is a number
+                if (typeof result.similarity !== 'number') {
+                    console.error(`Invalid similarity score for result at index ${index}:`, result);
+                    result.similarity = 0;  // Set default value
+                }
+                
+                // Get the subClass and class values and convert to string
+                let subClass = result['Sub-Class'] || '';
+                subClass = String(subClass).trim();
+                
+                let classVal = result.Class || '';
+                classVal = String(classVal).trim();
+                
+                // For numeric display, try to convert code values to integers
+                const formatAsInteger = (value) => {
+                    // If the value is numeric, remove decimals and return as integer
+                    const parsedValue = parseFloat(value);
+                    if (!isNaN(parsedValue)) {
+                        return Math.floor(parsedValue);
+                    }
+                    return value; // Return original value if not numeric
+                };
+                
+                // Convert code values to integers where applicable
+                const formattedSubClass = formatAsInteger(subClass);
+                const formattedClass = formatAsInteger(classVal);
+                const formattedGroup = formatAsInteger(result.Group || '');
+                const formattedDivision = formatAsInteger(result.Division || '');
+                
+                // Create result card
+                const resultCard = document.createElement('div');
+                resultCard.className = 'result-card';
+                resultCard.setAttribute('data-index', index);
+                
+                // Format similarity score as integer percentage (no decimal places)
+                const similarityPercent = Math.round(result.similarity * 100);
+                
+                // Get badge color based on similarity
+                let badgeColor = 'secondary';
+                if (similarityPercent >= 90) badgeColor = 'success';
+                else if (similarityPercent >= 70) badgeColor = 'primary';
+                else if (similarityPercent >= 50) badgeColor = 'info';
+                else if (similarityPercent >= 30) badgeColor = 'warning';
+                else badgeColor = 'danger';
+                
+                // Safely get properties with fallbacks
+                const section = result.Section || 'N/A';
+                const division = result.Division || 'N/A';
+                const group = result.Group || 'N/A';
+                const description = result.Description || 'No description available';
+                
+                // Determine if this is a valid result (has non-empty, non-null, non-"nan" Sub-Class)
+                const isValidSubClass = subClass && 
+                                      subClass !== 'N/A' && 
+                                      subClass.toLowerCase() !== 'nan' &&
+                                      subClass !== 'undefined' && 
+                                      subClass !== 'null';
+                
+                // Determine if this is a result with valid Class but invalid Sub-Class
+                const hasValidClass = classVal && 
+                                    classVal !== 'N/A' && 
+                                    classVal.toLowerCase() !== 'nan' &&
+                                    classVal !== 'undefined' && 
+                                    classVal !== 'null';
+                
+                // Use Sub-Class as title for valid results, otherwise use Class
+                const title = isValidSubClass ? formattedSubClass : (hasValidClass ? `Class: ${formattedClass}` : `Result #${index + 1}`);
+                
+                // Check if description is long enough to truncate
+                const isTruncatable = description.length > 300;
+                const truncatedClass = isTruncatable ? 'truncated' : '';
+                
+                // Prepare HTML for card content
+                resultCard.innerHTML = `
+                    <div class="result-title">
+                        <h4>${title}</h4>
+                        <span class="badge bg-${badgeColor} similarity-badge">${similarityPercent}% Match</span>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary section-badge">Section: ${section}</span>
+                    </div>
+                    
+                    <!-- Description right after the section -->
+                    <div class="description-text ${truncatedClass}">${description}</div>
+                    
+                    <div class="code-hierarchy">
+                        <div class="code-item">
+                            <span class="code-item-label">Division:</span> ${formattedDivision}
+                        </div>
+                        <div class="code-item">
+                            <span class="code-item-label">Group:</span> ${formattedGroup}
+                        </div>
+                        <div class="code-item">
+                            <span class="code-item-label">Class:</span> ${formattedClass}
+                        </div>
+                        <div class="code-item">
+                            <span class="code-item-label">Sub-Class:</span> ${isValidSubClass ? formattedSubClass : 'N/A'}
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        ${isValidSubClass ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Industry Code</div>
+                            <div class="detail-value">${formattedSubClass}</div>
+                        </div>
+                        ` : ''}
+                        <div class="detail-item">
+                            <div class="detail-label">Section</div>
+                            <div class="detail-value">${section}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Division</div>
+                            <div class="detail-value">${formattedDivision}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Group</div>
+                            <div class="detail-value">${formattedGroup}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Class</div>
+                            <div class="detail-value">${formattedClass}</div>
+                        </div>
+                        ${isValidSubClass ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Sub-Class</div>
+                            <div class="detail-value">${formattedSubClass}</div>
+                        </div>
+                        ` : ''}
+                        <div class="detail-item">
+                            <div class="detail-label">Similarity Score</div>
+                            <div class="detail-value">${similarityPercent}%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="expand-indicator">
+                        <span class="expand-text">Click to view more details <i class="expand-icon">▼</i></span>
+                        <span class="collapse-text">Click to collapse <i class="expand-icon">▼</i></span>
+                    </div>
+                `;
+                
+                // Add click event listener to make card expandable
+                resultCard.addEventListener('click', function(event) {
+                    // Toggle the expanded class
+                    this.classList.toggle('expanded');
+                });
+                
+                // Add to appropriate container based on validity criteria
+                if (isValidSubClass) {
+                    validResultsList.appendChild(resultCard);
+                    validResultsCount++;
+                } else if (hasValidClass) {
+                    // Only add to other results if it has a valid Class but invalid Sub-Class
+                    otherResultsList.appendChild(resultCard);
+                    otherResultsCount++;
+                } // If neither valid Sub-Class nor valid Class, don't show
+                
+            } catch (err) {
+                console.error(`Error rendering result at index ${index}:`, err);
+            }
+        });
+        
+        // Show appropriate messages if either column is empty
+        if (validResultsCount === 0) {
+            noValidResults.style.display = 'block';
+        }
+        
+        if (otherResultsCount === 0) {
+            noOtherResults.style.display = 'block';
+        }
+        
+        // If both columns are empty, show the main no results message
+        if (validResultsCount === 0 && otherResultsCount === 0) {
+            noResults.style.display = 'block';
+            noResults.textContent = 'No results found. Try a different search term.';
+        }
+    }
 
     let isRecording = false;
 

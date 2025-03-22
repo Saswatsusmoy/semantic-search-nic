@@ -7,7 +7,7 @@ import os
 import time
 import json
 from typing import Dict, Any, List
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, session
 from flask_cors import CORS
 from pymongo import MongoClient
 from bson import ObjectId
@@ -210,6 +210,32 @@ def index():
     """Render the main search page"""
     return send_from_directory('static', 'index.html')
 
+from hindi_semantic_search import HindiSemanticSearch
+
+# Initialize language-specific search engines
+english_search_engine = None  # Your existing search engine
+hindi_search_engine = None  # Hindi search engine
+
+def init_search_engines():
+    global english_search_engine, hindi_search_engine
+    # Initialize your existing English search engine
+    # ...
+    
+    # Initialize Hindi search engine
+    try:
+        # Try to load pre-built index first
+        if os.path.exists("hindi_faiss.index"):
+            hindi_search_engine = HindiSemanticSearch(index_path="hindi_faiss.index")
+        else:
+            # Fall back to building from embeddings
+            hindi_search_engine = HindiSemanticSearch(embeddings_file="output_hindi.json")
+        print("Hindi search engine initialized successfully")
+    except Exception as e:
+        print(f"Error initializing Hindi search engine: {str(e)}")
+
+# Initialize search engines when app starts
+init_search_engines()
+
 @app.route('/search', methods=['POST'])
 def search():
     """Search NIC codes using semantic search"""
@@ -239,57 +265,52 @@ def search():
         return jsonify({"error": "Empty query", "results": []})
     
     try:
-        # Use language-specific embedding function and index
-        embedding_function = language_data[language]["embedding_function"]
-        index = language_data[language]["index"]
-        
-        if not index or not embedding_function:
-            return jsonify({"error": "Language not properly initialized", "results": []})
-        
-        # Get query embedding
-        embedding_start = time.time()
-        query_embedding = embedding_function([query])[0].reshape(1, -1)
-        embedding_time = time.time() - embedding_start
-        
-        # Perform search
-        index_start = time.time()
-        distances, indices = index.search(query_embedding, result_count)
-        index_time = time.time() - index_start
-        
-        # Get full documents and format results
-        if language == "hindi" and language_data["hindi"]["documents"]:
-            # For Hindi with pre-loaded documents
-            id_map = language_data["hindi"]["id_map"]
-            documents = language_data["hindi"]["documents"]
+        # Select the appropriate search engine based on language
+        if language == 'hindi':
+            if hindi_search_engine is None:
+                return jsonify({
+                    'error': 'Hindi search engine not initialized',
+                    'results': []
+                })
             
-            raw_results = [(id_map[int(idx)], 1.0 - float(distances[0][i])) 
-                         for i, idx in enumerate(indices[0]) if idx >= 0 and int(idx) in id_map]
+            # Perform Hindi search
+            results = hindi_search_engine.search(query, top_k=result_count)
             
-            # Format results directly from loaded documents
+            # Format results if needed for UI consistency
             formatted_results = []
-            for doc_id, similarity in raw_results:
-                # Find the document with matching ID
-                doc = next((d for d in documents if str(d["_id"]) == doc_id), None)
-                if doc:
-                    # Calculate similarity percentage
-                    similarity_percent = int(max(0, min(100, similarity * 100)))
-                    
-                    # Format document data for response
-                    result = {
-                        "id": str(doc["_id"]),
-                        "title": doc.get("Description", "No Title"),
-                        "section": doc.get("Section", ""),
-                        "division": doc.get("Divison", ""),  # Note the typo in the JSON schema
-                        "group": doc.get("Group", ""),
-                        "class": doc.get("Class", ""),
-                        "subclass": doc.get("Sub-Class", ""),
-                        "similarity": similarity,
-                        "similarity_percent": similarity_percent,
-                        "description": doc.get("Description", doc.get("Sub-Class_Description", "No description available"))
+            for result in results:
+                doc = result['document']
+                formatted_results.append({
+                    'rank': result['rank'],
+                    'score': result['score'],
+                    'document': {
+                        'description': doc.get('description', ''),
+                        'section': doc.get('section', ''),
+                        'division': doc.get('division', ''),
+                        'group': doc.get('group', ''),
+                        'class': doc.get('class', ''),
+                        'subclass': doc.get('subclass', '')
                     }
-                    formatted_results.append(result)
+                })
         else:
-            # For English with MongoDB
+            # Use your existing English search logic
+            embedding_function = language_data[language]["embedding_function"]
+            index = language_data[language]["index"]
+            
+            if not index or not embedding_function:
+                return jsonify({"error": "Language not properly initialized", "results": []})
+            
+            # Get query embedding
+            embedding_start = time.time()
+            query_embedding = embedding_function([query])[0].reshape(1, -1)
+            embedding_time = time.time() - embedding_start
+            
+            # Perform search
+            index_start = time.time()
+            distances, indices = index.search(query_embedding, result_count)
+            index_time = time.time() - index_start
+            
+            # Get full documents and format results
             client, collection = get_mongodb_collection()
             raw_results = [(str(collection.find_one({"_id": ObjectId(idx)})["_id"]), 1.0 - float(distances[0][i])) 
                          for i, idx in enumerate(indices[0]) if idx >= 0]
@@ -311,7 +332,7 @@ def search():
                 "total_time_ms": round(total_time * 1000, 2),
                 "embedding_time_ms": round(embedding_time * 1000, 2),
                 "index_time_ms": round(index_time * 1000, 2),
-                "results_count": len(raw_results)
+                "results_count": len(formatted_results)
             }
         
         return jsonify(response)
