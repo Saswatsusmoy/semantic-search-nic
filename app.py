@@ -481,6 +481,11 @@ def init_language_data():
 # Initialize language data when app starts
 init_language_data()
 
+@app.route('/hindi-search')
+def hindi_search():
+    """Render the Hindi search page"""
+    return render_template('hindi_search.html')
+
 if __name__ == "__main__":
     # Ensure the output directory exists
     os.makedirs("Data Processing", exist_ok=True)

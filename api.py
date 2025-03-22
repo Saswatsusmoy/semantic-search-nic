@@ -21,10 +21,16 @@ from dotenv import load_dotenv
 # Import custom modules
 from faiss_index_manager import FAISSIndexManager
 from vector_embeddings_manager import cached_get_embedding, get_embeddings_manager
+from flask_compat import configure_templates
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Initialize Jinja2 templates
+templates = Jinja2Templates(directory="templates")
+# Add Flask-compatible functions to templates
+templates = configure_templates(templates)
 
 # Load environment variables
 load_dotenv()
@@ -471,6 +477,15 @@ async def health_check():
     Returns a simple status message.
     """
     return {"status": "ok", "message": "API is running"}
+
+@app.get("/hindi-search", response_class=HTMLResponse, tags=["UI"])
+async def hindi_search_page():
+    """
+    Hindi search interface page
+    
+    Returns the HTML interface for Hindi-specific semantic search functionality.
+    """
+    return templates.TemplateResponse("hindi_search.html", {"request": request})
 
 if __name__ == "__main__":
     import uvicorn
