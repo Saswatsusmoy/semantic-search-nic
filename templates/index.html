@@ -9,13 +9,86 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <!-- Language toggle switch styles -->
+    <style>
+        .language-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+            margin-left: 10px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4285f4;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #FF5722;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+        
+        .lang-label {
+            font-weight: 500;
+            margin: 0 5px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container position-relative">
+        <!-- Language toggle switch -->
+        <div class="language-toggle">
+            <span class="lang-label">English</span>
+            <label class="switch">
+                <input type="checkbox" id="language-toggle">
+                <span class="slider"></span>
+            </label>
+            <span class="lang-label">हिंदी</span>
+        </div>
+        
         <header class="text-center my-5">
-            <h1>NIC Code Semantic Search</h1>
-            <p class="lead">Search for industry codes and descriptions using natural language</p>
-            <span class="badge bg-primary">Powered by FAISS</span>
+            <h1 class="t-header">NIC Code Semantic Search</h1>
+            <p class="lead t-subtitle">Search for industry codes and descriptions using natural language</p>
+            <span class="badge bg-primary t-powered">Powered by FAISS</span>
         </header>
 
         <div class="search-container">
@@ -188,5 +261,130 @@
                 });
         }
     </script>
+    <script>
+    // Language translations
+    const translations = {
+        english: {
+            'header': 'NIC Code Semantic Search',
+            'subtitle': 'Search for industry codes and descriptions using natural language',
+            'powered': 'Powered by FAISS',
+            'search_button': 'Search',
+            'placeholder': 'Describe a business activity or industry...',
+            'advanced': 'Advanced Search Options',
+            'results_title': 'Search Results',
+            'valid_codes': 'Valid Industry Codes',
+            'class_only': 'Class-Only Results',
+            'no_results': 'No matches found. Try a different search term.',
+            'no_valid_results': 'No results with valid Sub-Class found.',
+            'no_other_results': 'No results with valid Class (but missing Sub-Class) found.',
+            'searching': 'Searching the database, please wait...',
+            'examples': 'Example searches: "bakery", "software development", "wheat cultivation", "manufacturing of plastic products"',
+            'note': 'Note: Only results with a valid Sub-Class will be displayed',
+            'num_results': 'Number of results:',
+            'search_mode': 'Search mode:',
+            'standard': 'Standard search',
+            'strict': 'Strict match',
+            'relaxed': 'Relaxed match',
+            'show_metrics': 'Show search performance metrics'
+        },
+        hindi: {
+            'header': 'एनआईसी कोड सिमैंटिक खोज',
+            'subtitle': 'प्राकृतिक भाषा का उपयोग करके उद्योग कोड और विवरण खोजें',
+            'powered': 'FAISS द्वारा संचालित',
+            'search_button': 'खोज',
+            'placeholder': 'व्यावसायिक गतिविधि या उद्योग का वर्णन करें...',
+            'advanced': 'उन्नत खोज विकल्प',
+            'results_title': 'खोज परिणाम',
+            'valid_codes': 'वैध उद्योग कोड',
+            'class_only': 'केवल-वर्ग परिणाम',
+            'no_results': 'कोई मिलान नहीं मिला। कोई अलग खोज शब्द आज़माएं।',
+            'no_valid_results': 'कोई वैध उप-वर्ग वाला परिणाम नहीं मिला।',
+            'no_other_results': 'कोई वैध वर्ग (लेकिन उप-वर्ग के बिना) वाला परिणाम नहीं मिला।',
+            'searching': 'डेटाबेस में खोज की जा रही है, कृपया प्रतीक्षा करें...',
+            'examples': 'उदाहरण खोजें: "बेकरी", "सॉफ्टवेयर विकास", "गेहूं की खेती", "प्लास्टिक उत्पादों का निर्माण"',
+            'note': 'नोट: केवल वैध उप-वर्ग वाले परिणाम प्रदर्शित किए जाएंगे',
+            'num_results': 'परिणामों की संख्या:',
+            'search_mode': 'खोज मोड:',
+            'standard': 'मानक खोज',
+            'strict': 'सख्त मिलान',
+            'relaxed': 'आराम मिलान',
+            'show_metrics': 'खोज प्रदर्शन मेट्रिक्स दिखाएं'
+        }
+    };
+
+    // Function to apply translations
+    function applyTranslations(lang) {
+        const dict = translations[lang];
+        
+        // Ensure direction is always LTR for both languages
+        document.documentElement.setAttribute('dir', 'ltr');
+        document.body.style.direction = 'ltr';
+        
+        // Update header and other main elements
+        document.querySelector('.t-header').textContent = dict.header;
+        document.querySelector('.t-subtitle').textContent = dict.subtitle;
+        document.querySelector('.t-powered').textContent = dict.powered;
+        
+        // Update search elements
+        document.querySelector('#search-input').placeholder = dict.placeholder;
+        document.querySelector('#search-form button[type="submit"]').textContent = dict.search_button;
+        document.querySelector('#advanced-search-toggle').firstChild.textContent = dict.advanced + ' ';
+        
+        // Update advanced search options
+        document.querySelector('label[for="result-count"]').textContent = dict.num_results;
+        document.querySelector('label[for="search-mode"]').textContent = dict.search_mode;
+        document.querySelector('option[value="standard"]').textContent = dict.standard;
+        document.querySelector('option[value="strict"]').textContent = dict.strict;
+        document.querySelector('option[value="relaxed"]').textContent = dict.relaxed;
+        document.querySelector('label[for="show-performance"]').textContent = dict.show_metrics;
+        
+        // Update results section
+        document.querySelector('.results-container h2').textContent = dict.results_title;
+        document.querySelector('#no-results').textContent = dict.no_results;
+        document.querySelectorAll('.column-title')[0].textContent = dict.valid_codes;
+        document.querySelectorAll('.column-title')[1].textContent = dict.class_only;
+        document.querySelector('#no-valid-results').textContent = dict.no_valid_results;
+        document.querySelector('#no-other-results').textContent = dict.no_other_results;
+        
+        // Update loading message
+        document.querySelector('#loading-spinner p').textContent = dict.searching;
+        
+        // Update examples and notes
+        document.querySelectorAll('.form-text.text-muted')[0].textContent = dict.examples;
+        document.querySelector('.form-text.text-muted small i').textContent = dict.note;
+    }
+
+    // Set up language toggle functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const languageToggle = document.getElementById('language-toggle');
+        
+        // Initialize language from localStorage
+        const savedLanguage = localStorage.getItem('selectedLanguage') || 'english';
+        
+        // Set initial toggle state
+        languageToggle.checked = (savedLanguage === 'hindi');
+        
+        // Apply initial translations
+        applyTranslations(savedLanguage);
+        
+        // Handle toggle changes
+        languageToggle.addEventListener('change', function() {
+            const language = this.checked ? 'hindi' : 'english';
+            localStorage.setItem('selectedLanguage', language);
+            applyTranslations(language);
+            
+            // Tell the server about the language change
+            fetch('/api/set-language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ language: language })
+            }).catch(error => {
+                console.error('Error updating language:', error);
+            });
+        });
+    });
+</script>
 </body>
 </html>

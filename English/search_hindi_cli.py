@@ -75,6 +75,32 @@ def interactive_search(search_engine: HindiSemanticSearch) -> None:
         except Exception as e:
             print(f"Error: {str(e)}")
 
+def perform_hindi_search(query, top_k=5):
+    """
+    Perform Hindi search and return results
+    
+    Args:
+        query: The search query in Hindi
+        top_k: Number of results to return
+        
+    Returns:
+        List of search results
+    """
+    import os
+    try:
+        # Initialize search engine using the index file if available, otherwise use embeddings
+        if os.path.exists("hindi_faiss.index"):
+            search_engine = HindiSemanticSearch(index_path="hindi_faiss.index")
+        else:
+            search_engine = HindiSemanticSearch(embeddings_file="output_hindi.json")
+        
+        # Perform the search
+        results = search_engine.search(query, top_k=top_k)
+        return results
+    except Exception as e:
+        print(f"Error in Hindi search: {str(e)}")
+        return []
+
 def main():
     parser = argparse.ArgumentParser(description="Hindi Semantic Search using FAISS")
     

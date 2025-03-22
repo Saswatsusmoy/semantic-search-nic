@@ -7,7 +7,7 @@ import os
 import time
 import json
 from typing import Dict, Any, List
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, session
 from flask_cors import CORS
 from pymongo import MongoClient
 from bson import ObjectId
@@ -210,91 +210,74 @@ def index():
     """Render the main search page"""
     return send_from_directory('static', 'index.html')
 
+from hindi_semantic_search import HindiSemanticSearch
+
+# Initialize language-specific search engines
+english_search_engine = None  # Your existing search engine
+hindi_search_engine = None  # Hindi search engine
+
+def init_search_engines():
+    global english_search_engine, hindi_search_engine
+    # Initialize your existing English search engine
+    # ...
+    
+    # Initialize Hindi search engine
+    try:
+        # Try to load pre-built index first
+        if os.path.exists("hindi_faiss.index"):
+            hindi_search_engine = HindiSemanticSearch(index_path="hindi_faiss.index")
+        else:
+            # Fall back to building from embeddings
+            hindi_search_engine = HindiSemanticSearch(embeddings_file="output_hindi.json")
+        print("Hindi search engine initialized successfully")
+    except Exception as e:
+        print(f"Error initializing Hindi search engine: {str(e)}")
+
+# Initialize search engines when app starts
+init_search_engines()
+
 @app.route('/search', methods=['POST'])
 def search():
     """Search NIC codes using semantic search"""
     start_time = time.time()
     
-    # Get search parameters from JSON request body
-    if request.is_json:
-        data = request.get_json()
-        query = data.get('query', '')
-        result_count = int(data.get('count', 10))
-        search_mode = data.get('mode', 'standard')
-        show_metrics = data.get('metrics', False)
-        language = data.get('language', current_language)
-    else:
-        # Legacy form data support
-        query = request.form.get('query', '')
-        result_count = int(request.form.get('result_count', 10))
-        search_mode = request.form.get('search_mode', 'standard')
-        show_metrics = request.form.get('show_metrics') == 'true'
-        language = request.form.get('language', current_language)
-    
-    if language not in SUPPORTED_LANGUAGES:
-        language = DEFAULT_LANGUAGE
+    # Get search parameters from form data for English search
+    query = request.form.get('query', '')
+    result_count = int(request.form.get('result_count', 10))
+    search_mode = request.form.get('search_mode', 'standard')
+    show_metrics = request.form.get('show_metrics') == 'true'
     
     # Handle empty query
     if not query:
         return jsonify({"error": "Empty query", "results": []})
     
     try:
-        # Use language-specific embedding function and index
-        embedding_function = language_data[language]["embedding_function"]
-        index = language_data[language]["index"]
-        
-        if not index or not embedding_function:
-            return jsonify({"error": "Language not properly initialized", "results": []})
-        
         # Get query embedding
         embedding_start = time.time()
-        query_embedding = embedding_function([query])[0].reshape(1, -1)
+        query_embedding = cached_get_embedding([query])[0].reshape(1, -1)
         embedding_time = time.time() - embedding_start
         
         # Perform search
         index_start = time.time()
-        distances, indices = index.search(query_embedding, result_count)
+        distances, indices = faiss_manager.index.search(query_embedding, result_count)
         index_time = time.time() - index_start
         
-        # Get full documents and format results
-        if language == "hindi" and language_data["hindi"]["documents"]:
-            # For Hindi with pre-loaded documents
-            id_map = language_data["hindi"]["id_map"]
-            documents = language_data["hindi"]["documents"]
-            
-            raw_results = [(id_map[int(idx)], 1.0 - float(distances[0][i])) 
-                         for i, idx in enumerate(indices[0]) if idx >= 0 and int(idx) in id_map]
-            
-            # Format results directly from loaded documents
-            formatted_results = []
-            for doc_id, similarity in raw_results:
-                # Find the document with matching ID
-                doc = next((d for d in documents if str(d["_id"]) == doc_id), None)
-                if doc:
-                    # Calculate similarity percentage
-                    similarity_percent = int(max(0, min(100, similarity * 100)))
-                    
-                    # Format document data for response
-                    result = {
-                        "id": str(doc["_id"]),
-                        "title": doc.get("Description", "No Title"),
-                        "section": doc.get("Section", ""),
-                        "division": doc.get("Divison", ""),  # Note the typo in the JSON schema
-                        "group": doc.get("Group", ""),
-                        "class": doc.get("Class", ""),
-                        "subclass": doc.get("Sub-Class", ""),
-                        "similarity": similarity,
-                        "similarity_percent": similarity_percent,
-                        "description": doc.get("Description", doc.get("Sub-Class_Description", "No description available"))
-                    }
-                    formatted_results.append(result)
-        else:
-            # For English with MongoDB
-            client, collection = get_mongodb_collection()
-            raw_results = [(str(collection.find_one({"_id": ObjectId(idx)})["_id"]), 1.0 - float(distances[0][i])) 
-                         for i, idx in enumerate(indices[0]) if idx >= 0]
-            formatted_results = format_search_results(raw_results, collection)
-            client.close()
+        # Get MongoDB client and collection
+        client, collection = get_mongodb_collection()
+        
+        # Format raw results as (id, similarity) tuples
+        raw_results = []
+        for i, idx in enumerate(indices[0]):
+            if idx >= 0:  # Skip negative indices (no match)
+                doc_id = faiss_manager.id_map[idx]
+                similarity = 1.0 - float(distances[0][i])  # Convert distance to similarity
+                raw_results.append((doc_id, similarity))
+        
+        # Format results for response
+        formatted_results = format_search_results(raw_results, collection)
+        
+        # Close MongoDB connection
+        client.close()
         
         # Calculate total time
         total_time = time.time() - start_time
@@ -311,13 +294,16 @@ def search():
                 "total_time_ms": round(total_time * 1000, 2),
                 "embedding_time_ms": round(embedding_time * 1000, 2),
                 "index_time_ms": round(index_time * 1000, 2),
-                "results_count": len(raw_results)
+                "results_count": len(formatted_results)
             }
         
         return jsonify(response)
         
     except Exception as e:
-        app.logger.error(f"Search error: {str(e)}")
+        # Log the error
+        print(f"Search error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e), "results": []})
 
 @app.route('/rebuild-index', methods=['POST'])
@@ -485,6 +471,60 @@ init_language_data()
 def hindi_search():
     """Render the Hindi search page"""
     return render_template('hindi_search.html')
+
+@app.route('/hindi-search', methods=['POST'])
+def hindi_search_endpoint():
+    """Handle Hindi search requests"""
+    data = request.get_json()
+    query = data.get('query', '')
+    result_count = int(data.get('count', 10))
+    show_metrics = data.get('metrics', False)
+    
+    if not query.strip():
+        return jsonify({"error": "Empty query", "results": []})
+    
+    try:
+        # Import the Hindi search function
+        from search_hindi_cli import perform_hindi_search
+        
+        # Perform Hindi search
+        start_time = time.time()
+        results = perform_hindi_search(query, top_k=result_count)
+        
+        # Format results for frontend
+        formatted_results = []
+        for result in results:
+            doc = result.get('document', {})
+            formatted_result = {
+                'document': doc,
+                'score': result.get('score', 0)
+            }
+            formatted_results.append(formatted_result)
+        
+        # Calculate metrics
+        metrics = {}
+        if show_metrics:
+            end_time = time.time()
+            metrics = {
+                'total_time_ms': round((end_time - start_time) * 1000, 2),
+                'results_count': len(formatted_results)
+            }
+        
+        response = {
+            'results': formatted_results,
+            'count': len(formatted_results)
+        }
+        
+        if show_metrics:
+            response['metrics'] = metrics
+            
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"Hindi search error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e), "results": []})
 
 if __name__ == "__main__":
     # Ensure the output directory exists

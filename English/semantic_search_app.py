@@ -12,7 +12,8 @@ from faiss_index_manager import FAISSIndexManager
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
 from recording import start_recording, stop_recording  # Import recording functions
-from cleaning import correct_words  
+from cleaning import correct_words
+from vector_embeddings_manager import VectorEmbeddingsManager, get_embeddings_manager  # Add VectorEmbeddingsManager
 
 # Load environment variables
 load_dotenv()
@@ -23,8 +24,13 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Initialize the SentenceTransformer model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Define embedding models to use
+DEFAULT_MODEL = 'all-MiniLM-L6-v2'
+INDIAN_LANGUAGE_MODEL = 'krutrim-ai-labs/Vyakyarth'
+EMBEDDING_MODELS = [DEFAULT_MODEL, INDIAN_LANGUAGE_MODEL]
+
+# Initialize the embeddings manager instead of direct model instantiation
+embeddings_manager = get_embeddings_manager(DEFAULT_MODEL)
 
 # Path to local JSON file
 json_file_path = os.path.join(os.path.dirname(__file__), "output.json")
@@ -34,6 +40,20 @@ faiss_manager = FAISSIndexManager()  # No need for connection string now
 
 # Global variable to store data from JSON file
 json_data = []
+
+# Cache all models at startup
+def cache_all_models():
+    """Pre-load and cache all embedding models"""
+    for model_name in EMBEDDING_MODELS:
+        try:
+            logger.info(f"Pre-caching embedding model: {model_name}")
+            # This will force the model to be loaded and cached
+            current_manager = get_embeddings_manager(model_name)
+            # Perform a sample embedding to ensure the model is loaded
+            _ = current_manager.get_embedding("This is a test sentence to cache the model.")
+            logger.info(f"Successfully cached model: {model_name}")
+        except Exception as e:
+            logger.error(f"Error pre-caching model {model_name}: {str(e)}")
 
 def load_json_data():
     """
@@ -174,8 +194,9 @@ def perform_semantic_search(query, collection, top_n=10, search_mode="standard")
         
         #Clean and spellcorrect query
         query = correct_words(query)
-        # Encode the query text
-        query_embedding = model.encode(query)
+        
+        # Use embeddings manager instead of direct model encoding
+        query_embedding = embeddings_manager.get_embedding(query)
         
         # Adjust search parameters based on mode
         if search_mode == "strict":
@@ -400,6 +421,10 @@ if __name__ == '__main__':
     if not success:
         logger.warning("FAISS index not found or could not be loaded. Building index...")
         faiss_manager.build_index()
+    
+    # Pre-cache all embedding models
+    logger.info("Pre-caching embedding models...")
+    cache_all_models()
     
     # Ensure the output directory exists
     os.makedirs("Data Processing", exist_ok=True)
