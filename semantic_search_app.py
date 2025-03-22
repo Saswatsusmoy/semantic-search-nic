@@ -11,8 +11,12 @@ import time
 from faiss_index_manager import FAISSIndexManager
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
+<<<<<<< HEAD
 # from cleaning import clean_sentence  # Added import for clean_sentence function
 from recording import start_recording, stop_recording  # Import recording functions
+=======
+from cleaning import correct_words  # Added import for clean_sentence function
+>>>>>>> 6ac000741034e68e46a29bb6be620b3aa94a4ec9
 
 # Load environment variables
 load_dotenv()
@@ -173,7 +177,7 @@ def perform_semantic_search(query, collection, top_n=10, search_mode="standard")
             metrics["index_time_ms"] = 0  # Index was already loaded
         
         #Clean and spellcorrect query
-        # query = clean_sentence(query)
+        query = correct_words(query)
         # Encode the query text
         query_embedding = model.encode(query)
         

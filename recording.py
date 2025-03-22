@@ -45,4 +45,8 @@ def stop_recording(filename="Data Processing/output.wav"):
 
 # start_recording()
 # input("Press Enter to stop recording")
+<<<<<<< HEAD
 # stop_recording()
+=======
+# stop_recording()
+>>>>>>> 6ac000741034e68e46a29bb6be620b3aa94a4ec9
