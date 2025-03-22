@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>हिंदी एनआईसी कोड खोज</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: 'Noto Sans', 'Arial', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .rtl-support {
+            font-family: 'Noto Sans', 'Arial', sans-serif;
+        }
+        .rtl-support .result-card h4 {
+            font-size: 1.4rem;
+        }
+        .rtl-support .result-card p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        .search-container {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        .result-card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        .result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+        .language-toggle {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 100;
+        }
+        .btn-language {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            margin: 0 3px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        .btn-language.active {
+            background-color: #4285f4;
+            color: white;
+            border-color: #4285f4;
+        }
+        .similarity-label {
+            font-size: 0.85rem;
+            border-radius: 20px;
+            padding: 0.2rem 0.6rem;
+        }
+        .loader {
+            display: none;
+            margin: 20px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="rtl-support">
+    <div class="container position-relative">
+        <!-- Language toggle buttons -->
+        <div class="language-toggle">
+            <a href="/" class="btn btn-language">English</a>
+            <button class="btn btn-language active">हिंदी</button>
+        </div>
+
+        <header class="text-center my-5">
+            <h1 class="display-4">हिंदी एनआईसी कोड खोज</h1>
+            <p class="lead">प्राकृतिक भाषा का उपयोग करके उद्योग कोड और विवरण खोजें</p>
+            <span class="badge bg-primary">FAISS द्वारा संचालित</span>
+        </header>
+
+        <div class="search-container">
+            <div class="row justify-content-center">
+                <div class="col-md-10">
+                    <div class="input-group mb-3">
+                        <input type="text" id="search-input" class="form-control form-control-lg" 
+                               placeholder="व्यावसायिक गतिविधि या उद्योग का वर्णन करें..." 
+                               aria-label="व्यावसायिक गतिविधि या उद्योग का वर्णन करें...">
+                        <button class="btn btn-primary" type="button" id="search-button">खोज</button>
+                    </div>
+
+                    <div class="mt-2">
+                        <p class="text-muted small">उदाहरण खोज: "बेकरी", "सॉफ्टवेयर विकास", "गेहूं की खेती", "प्लास्टिक उत्पादों का निर्माण"</p>
+                    </div>
+
+                    <div class="mt-3">
+                        <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" 
+                           href="#advancedOptions" role="button">
+                           उन्नत खोज विकल्प
+                        </a>
+                        
+                        <div class="collapse mt-3" id="advancedOptions">
+                            <div class="card card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label for="resultCount" class="form-label">दिखाने के लिए परिणाम</label>
+                                        <select class="form-select" id="resultCount">
+                                            <option value="5">5</option>
+                                            <option value="10">10</option>
+                                            <option value="20">20</option>
+                                            <option value="50">50</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="searchMode" class="form-label">खोज मोड</label>
+                                        <select class="form-select" id="searchMode">
+                                            <option value="standard">मानक</option>
+                                            <option value="strict">सख्त</option>
+                                            <option value="relaxed">आराम</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-center">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="showMetrics">
+                                            <label class="form-check-label" for="showMetrics">
+                                                प्रदर्शन मेट्रिक्स दिखाएं
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loader -->
+        <div class="loader" id="search-loader"></div>
+
+        <!-- Performance Metrics Section -->
+        <div class="mt-4" id="performance-metrics" style="display: none;">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">प्रदर्शन मेट्रिक्स</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <p><strong>कुल समय:</strong> <span id="total-time">-</span> सेकंड</p>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>FAISS इंडेक्स एक्सेस:</strong> <span id="index-time">-</span> सेकंड</p>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>परिणाम मिले:</strong> <span id="result-count">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="mt-4" id="results-section" style="display: none;">
+            <h2>खोज परिणाम</h2>
+            
+            <!-- Valid NIC Results -->
+            <div class="mt-4">
+                <h3>वैध एनआईसी कोड</h3>
+                <div id="valid-results" class="row"></div>
+                <div id="no-valid-results" style="display: none;">
+                    <div class="alert alert-warning">कोई वैध एनआईसी कोड नहीं मिला।</div>
+                </div>
+            </div>
+            
+            <!-- Other Matches -->
+            <div class="mt-5">
+                <h3>अन्य मैच</h3>
+                <div id="other-results" class="row"></div>
+                <div id="no-other-results" style="display: none;">
+                    <div class="alert alert-info">कोई अतिरिक्त मिलान नहीं मिला।</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- No Results Message -->
+        <div class="mt-4 alert alert-warning" id="no-results" style="display: none;">
+            कोई परिणाम नहीं मिला। कोई अलग खोज शब्द आज़माएं।
+        </div>
+
+        <!-- Error Message -->
+        <div class="mt-4 alert alert-danger" id="error-message" style="display: none;">
+            आपकी खोज को संसाधित करते समय एक त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।
+        </div>
+
+        <footer class="my-5 text-center text-muted">
+            <p>© 2023 एनआईसी कोड सर्च</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const apiClient = {
+                searchWithJson: async function(query, resultCount, searchMode, showMetrics) {
+                    const response = await fetch('/search', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            result_count: resultCount,
+                            mode: searchMode,
+                            show_metrics: showMetrics,
+                            language: 'hindi'  // Explicitly set language to Hindi
+                        })
+                    });
+                    
+                    return await response.json();
+                }
+            };
+
+            // Search functionality
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const resultCountSelect = document.getElementById('resultCount');
+            const searchModeSelect = document.getElementById('searchMode');
+            const showMetricsCheckbox = document.getElementById('showMetrics');
+            const searchLoader = document.getElementById('search-loader');
+            const resultsSection = document.getElementById('results-section');
+            const validResults = document.getElementById('valid-results');
+            const otherResults = document.getElementById('other-results');
+            const noValidResults = document.getElementById('no-valid-results');
+            const noOtherResults = document.getElementById('no-other-results');
+            const noResults = document.getElementById('no-results');
+            const errorMessage = document.getElementById('error-message');
+            const performanceMetrics = document.getElementById('performance-metrics');
+            
+            // Example search terms for quick searching
+            document.querySelectorAll('.text-muted.small a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    searchInput.value = this.textContent.trim();
+                    performSearch();
+                });
+            });
+
+            // Handle search button click
+            searchButton.addEventListener('click', performSearch);
+
+            // Handle enter key press in search input
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+
+            function performSearch() {
+                const query = searchInput.value.trim();
+                
+                if (!query) {
+                    // Show validation error or focus on input
+                    searchInput.focus();
+                    return;
+                }
+
+                // Reset UI state
+                resetUI();
+                
+                // Show loader
+                searchLoader.style.display = 'block';
+                
+                // Get search parameters
+                const resultCount = parseInt(resultCountSelect.value);
+                const searchMode = searchModeSelect.value;
+                const showMetrics = showMetricsCheckbox.checked;
+                
+                // Execute search
+                apiClient.searchWithJson(query, resultCount, searchMode, showMetrics)
+                    .then(response => {
+                        // Hide loader
+                        searchLoader.style.display = 'none';
+                        
+                        // Process results
+                        if (response.error) {
+                            // Show error message
+                            errorMessage.innerText = response.error;
+                            errorMessage.style.display = 'block';
+                            return;
+                        }
+
+                        const results = response.results || [];
+                        
+                        if (results.length === 0) {
+                            // No results found
+                            noResults.style.display = 'block';
+                            return;
+                        }
+
+                        // Display results
+                        displayResults(results);
+                        
+                        // Show performance metrics if available
+                        if (showMetrics && response.metrics) {
+                            displayMetrics(response.metrics);
+                            performanceMetrics.style.display = 'block';
+                        }
+                    })
+                    .catch(error => {
+                        // Hide loader and show error
+                        searchLoader.style.display = 'none';
+                        errorMessage.innerText = 'आपकी खोज को संसाधित करते समय एक त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।';
+                        errorMessage.style.display = 'block';
+                        console.error('Search error:', error);
+                    });
+            }
+
+            function resetUI() {
+                // Hide all result sections and messages
+                resultsSection.style.display = 'none';
+                noResults.style.display = 'none';
+                errorMessage.style.display = 'none';
+                performanceMetrics.style.display = 'none';
+                validResults.innerHTML = '';
+                otherResults.innerHTML = '';
+                noValidResults.style.display = 'none';
+                noOtherResults.style.display = 'none';
+            }
+
+            function displayResults(results) {
+                resultsSection.style.display = 'block';
+                
+                // Separate valid and other results
+                const valid = results.filter(r => r.subclass && r.subclass.trim() !== '');
+                const other = results.filter(r => !r.subclass || r.subclass.trim() === '');
+                
+                // Display valid results
+                if (valid.length > 0) {
+                    valid.forEach(result => {
+                        validResults.appendChild(createResultCard(result));
+                    });
+                } else {
+                    noValidResults.style.display = 'block';
+                }
+                
+                // Display other results
+                if (other.length > 0) {
+                    other.forEach(result => {
+                        otherResults.appendChild(createResultCard(result));
+                    });
+                } else {
+                    noOtherResults.style.display = 'block';
+                }
+            }
+
+            function createResultCard(result) {
+                const col = document.createElement('div');
+                col.className = 'col-lg-6 mb-4';
+                
+                const similarityClass = getSimilarityClass(result.similarity_percent);
+                
+                col.innerHTML = `
+                    <div class="result-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h4 class="card-title mb-0">${result.title || 'उद्योग कोड'}</h4>
+                            <span class="badge ${similarityClass} similarity-label">${result.similarity_percent}% मिलान</span>
+                        </div>
+                        <p class="mb-1"><strong>विवरण:</strong> ${result.description || 'कोई विवरण उपलब्ध नहीं'}</p>
+                        <div class="mt-3 pt-2 border-top">
+                            <p class="mb-1 small">
+                                <strong>अनुभाग:</strong> ${result.section || '-'} | 
+                                <strong>विभाजन:</strong> ${result.division || '-'} | 
+                                <strong>समूह:</strong> ${result.group || '-'} | 
+                                <strong>वर्ग:</strong> ${result.class || '-'} | 
+                                <strong>उप-वर्ग:</strong> ${result.subclass || '-'}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+                return col;
+            }
+
+            function getSimilarityClass(similarity) {
+                if (similarity >= 90) return 'bg-success text-white';
+                if (similarity >= 75) return 'bg-primary text-white';
+                if (similarity >= 60) return 'bg-info text-dark';
+                if (similarity >= 40) return 'bg-warning text-dark';
+                return 'bg-secondary text-white';
+            }
+
+            function displayMetrics(metrics) {
+                document.getElementById('total-time').textContent = metrics.total_time.toFixed(3);
+                document.getElementById('index-time').textContent = metrics.index_time.toFixed(3);
+                document.getElementById('result-count').textContent = metrics.result_count;
+            }
+        });
+    </script>
+</body>
+</html>

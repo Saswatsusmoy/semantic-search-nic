@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIC Code Semantic Search</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .language-toggle {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+        }
+        .btn-language {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            color: #333;
+            margin: 0 3px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        .btn-language.active {
+            background-color: #4285f4;
+            color: white;
+            border-color: #4285f4;
+        }
+    </style>
+</head>
+<body>
+    <!-- This is a version of index.html modified for FastAPI compatibility -->
+    <div class="container position-relative">
+        <!-- Language toggle buttons -->
+        <div class="language-toggle">
+            <button class="btn btn-language" data-lang="english">English</button>
+            <button class="btn btn-language" data-lang="hindi">हिंदी</button>
+        </div>
+
+        <header class="text-center my-5">
+            <h1 class="display-4"><span class="t-header">NIC Code Semantic Search</span></h1>
+            <p class="lead"><span class="t-subtitle">Search for industry codes and descriptions using natural language</span></p>
+            <span class="badge bg-primary"><span class="t-powered-by">Powered by FAISS</span></span>
+        </header>
+
+        <div class="search-container">
+            <form id="search-form">
+                <div class="input-group mb-4">
+                    <input type="text" id="search-input" class="form-control form-control-lg" 
+                           placeholder="Describe a business activity or industry..." required>
+                    <button class="btn btn-primary" type="submit"><span class="t-search">Search</span></button>
+                </div>
+                <div class="form-text text-muted">
+                    <span class="t-examples">Example searches: "bakery", "software development", "wheat cultivation", "manufacturing of plastic products"</span>
+                </div>
+                <div class="form-text text-muted mt-2">
+                    <small><i><span class="t-note">Note: Only results with a valid Sub-Class will be displayed</span></i></small>
+                </div>
+                
+                <!-- Advanced search options toggle -->
+                <a class="advanced-search-toggle" id="advanced-search-toggle">
+                    <span class="t-advanced">Advanced Search Options</span> <span id="toggle-icon">▼</span>
+                </a>
+                
+                <!-- Advanced search options panel -->
+                <div class="advanced-search-options" id="advanced-search-options">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="result-count" class="form-label"><span class="t-results-to-show">Results to show</span></label>
+                            <select id="result-count" class="form-select">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="search-mode" class="form-label"><span class="t-search-mode">Search mode</span></label>
+                            <select id="search-mode" class="form-select">
+                                <option value="standard" selected><span class="t-standard">Standard</span></option>
+                                <option value="strict"><span class="t-strict">Strict</span></option>
+                                <option value="relaxed"><span class="t-relaxed">Relaxed</span></option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="show-performance">
+                                <label class="form-check-label" for="show-performance">
+                                    <span class="t-show-metrics">Show performance metrics</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Loading spinner -->
+        <div id="loading-spinner" class="text-center my-5" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2"><span class="t-searching">Searching for matching NIC codes...</span></p>
+        </div>
+        
+        <!-- Performance metrics -->
+        <div id="performance-metrics" class="alert alert-info mt-4" style="display: none;">
+            <h5><span class="t-performance-metrics">Performance Metrics</span></h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <p><span class="t-total-time">Total time:</span> <span id="search-time" class="fw-bold"></span> ms</p>
+                </div>
+                <div class="col-md-4">
+                    <p><span class="t-index-time">Index search:</span> <span id="index-time" class="fw-bold"></span> ms</p>
+                </div>
+                <div class="col-md-4">
+                    <p><span class="t-results-found">Results found:</span> <span id="results-count" class="fw-bold"></span></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results container -->
+        <div id="results-container" class="my-5" style="display: none;">
+            <h3><span class="t-search-results">Search Results</span></h3>
+            
+            <div class="accordion" id="searchResultsAccordion">
+                <!-- Valid results section -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#validResultsCollapse" aria-expanded="true" aria-controls="validResultsCollapse">
+                            <span class="t-valid-nic">Valid NIC Codes</span>
+                        </button>
+                    </h2>
+                    <div id="validResultsCollapse" class="accordion-collapse collapse show" data-bs-parent="#searchResultsAccordion">
+                        <div class="accordion-body">
+                            <p id="no-valid-results" class="text-muted" style="display: none;"><span class="t-no-valid-results">No valid NIC codes found.</span></p>
+                            <div id="valid-results-list" class="list-group">
+                                <!-- Valid results will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Other results section -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#otherResultsCollapse" aria-expanded="false" aria-controls="otherResultsCollapse">
+                            <span class="t-other-matches">Other Matches</span>
+                        </button>
+                    </h2>
+                    <div id="otherResultsCollapse" class="accordion-collapse collapse" data-bs-parent="#searchResultsAccordion">
+                        <div class="accordion-body">
+                            <p id="no-other-results" class="text-muted" style="display: none;"><span class="t-no-other-results">No additional matches found.</span></p>
+                            <div id="other-results-list" class="list-group">
+                                <!-- Other results will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- No results message -->
+        <div id="no-results" class="alert alert-warning my-5" style="display: none;">
+            <span class="t-no-results">No matches found. Try a different search term.</span>
+        </div>
+
+        <!-- Admin panel modal -->
+        <div class="modal fade" id="adminModal" tabindex="-1" aria-labelledby="adminModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="adminModalLabel"><span class="t-admin-panel">Admin Panel</span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Admin functions -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><span class="t-rebuild-index">Rebuild FAISS Index</span></h5>
+                                        <p class="card-text">Rebuild the FAISS index with all documents in the database.</p>
+                                        <button id="rebuild-index-btn" class="btn btn-warning"><span class="t-rebuild-index">Rebuild Index</span></button>
+                                        <div id="rebuild-status" class="mt-3" style="display: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><span class="t-clear-cache">Clear Embedding Cache</span></h5>
+                                        <p class="card-text">Clear the embedding cache to free memory.</p>
+                                        <button id="clear-cache-btn" class="btn btn-danger"><span class="t-clear-cache">Clear Cache</span></button>
+                                        <div id="cache-status" class="mt-3" style="display: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Index statistics -->
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5>Index Statistics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="index-stats">
+                                    <p>Loading index statistics...</p>
+                                </div>
+                                <button id="refresh-stats-btn" class="btn btn-sm btn-outline-secondary mt-3">Refresh Stats</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-5">
+        <div class="text-center py-3">
+            <button class="btn btn-sm btn-link text-muted" id="admin-toggle"><span class="t-admin">Admin</span></button>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='api-client.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <script>
+        // Connect form submission to API client
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchForm = document.getElementById('search-form');
+            
+            // Initialize language from localStorage
+            const savedLanguage = localStorage.getItem('selectedLanguage') || 'english';
+            console.log('Initial language from localStorage:', savedLanguage);
+            
+            // Force language initialization
+            try {
+                // Get language button elements
+                const langButtons = document.querySelectorAll('.btn-language');
+                console.log('Language buttons found:', langButtons.length);
+                
+                // Set active language
+                langButtons.forEach(btn => {
+                    if (btn.getAttribute('data-lang') === savedLanguage) {
+                        btn.classList.add('active');
+                        console.log('Set active button:', btn.getAttribute('data-lang'));
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+                
+                // Apply translations immediately
+                const langDict = translations[savedLanguage];
+                if (langDict) {
+                    document.querySelectorAll('[class*="t-"]').forEach(elem => {
+                        // Extract translation keys from class names
+                        const classes = elem.className.split(' ');
+                        for (const cls of classes) {
+                            if (cls.startsWith('t-')) {
+                                const key = cls.substring(2);
+                                if (langDict[key]) {
+                                    elem.textContent = langDict[key];
+                                    console.log('Translated element:', key);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Update search input placeholder
+                    const searchInput = document.getElementById('search-input');
+                    if (searchInput) {
+                        searchInput.placeholder = savedLanguage === 'english' ? 
+                            'Describe a business activity or industry...' : 
+                            'व्यावसायिक गतिविधि या उद्योग का वर्णन करें...';
+                    }
+                }
+            } catch(e) {
+                console.error('Error initializing language:', e);
+            }
+            
+            // Direct event listener for language buttons
+            document.querySelectorAll('.btn-language').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const lang = this.getAttribute('data-lang');
+                    console.log('Language button clicked:', lang);
+                    
+                    // Set active class
+                    document.querySelectorAll('.btn-language').forEach(btn => {
+                        btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+                    });
+                    
+                    // Apply translations
+                    const langDict = translations[lang];
+                    if (langDict) {
+                        document.querySelectorAll('[class*="t-"]').forEach(elem => {
+                            const classes = elem.className.split(' ');
+                            for (const cls of classes) {
+                                if (cls.startsWith('t-')) {
+                                    const key = cls.substring(2);
+                                    if (langDict[key]) {
+                                        elem.textContent = langDict[key];
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Update search input placeholder
+                        const searchInput = document.getElementById('search-input');
+                        if (searchInput) {
+                            searchInput.placeholder = lang === 'english' ? 
+                                'Describe a business activity or industry...' : 
+                                'व्यावसायिक गतिविधि या उद्योग का वर्णन करें...';
+                        }
+                    }
+                    
+                    // Save to localStorage
+                    localStorage.setItem('selectedLanguage', lang);
+                    
+                    // Update backend language setting
+                    window.apiClient.setLanguage(lang)
+                        .then(response => {
+                            console.log('Language updated on server:', response);
+                        })
+                        .catch(error => {
+                            console.error('Error updating language on server:', error);
+                        });
+                });
+            });
+            
+            if (searchForm) {
+                // Replace the form submission handler
+                searchForm.onsubmit = function(e) {
+                    e.preventDefault();
+                    
+                    const query = document.getElementById('search-input').value.trim();
+                    if (query === '') return;
+                    
+                    const resultCount = document.getElementById('result-count').value;
+                    const searchMode = document.getElementById('search-mode').value;
+                    const showMetrics = document.getElementById('show-performance').checked;
+                    
+                    // Reset display
+                    document.getElementById('no-results').style.display = 'none';
+                    document.getElementById('valid-results-list').innerHTML = '';
+                    document.getElementById('other-results-list').innerHTML = '';
+                    document.getElementById('no-valid-results').style.display = 'none';
+                    document.getElementById('no-other-results').style.display = 'none';
+                    document.getElementById('performance-metrics').style.display = 'none';
+                    
+                    // Show loading spinner
+                    document.getElementById('loading-spinner').style.display = 'block';
+                    // Hide results while loading
+                    document.getElementById('results-container').style.display = 'none';
+                    
+                    // Use JSON API format instead of form data
+                    window.apiClient.searchWithJson(query, resultCount, searchMode, showMetrics)
+                        .then(data => {
+                            // Debug info
+                            console.log("Search results:", data);
+                            console.log(`Got ${data.count} results, metrics: ${JSON.stringify(data.metrics)}`);
+                            
+                            // Hide loading spinner
+                            document.getElementById('loading-spinner').style.display = 'none';
+                            
+                            // Show results container
+                            document.getElementById('results-container').style.display = 'block';
+                            
+                            // Display performance metrics if available
+                            if (showMetrics && data.metrics) {
+                                document.getElementById('search-time').textContent = data.metrics.total_time_ms;
+                                document.getElementById('index-time').textContent = data.metrics.index_time_ms;
+                                document.getElementById('results-count').textContent = data.metrics.results_count;
+                                document.getElementById('performance-metrics').style.display = 'block';
+                            }
+                            
+                            // Process and display results
+                            const results = data.results || [];
+                            if (results.length === 0) {
+                                document.getElementById('no-results').style.display = 'block';
+                                return;
+                            }
+                            
+                            let validResultsCount = 0;
+                            let otherResultsCount = 0;
+                            
+                            // Process each result
+                            results.forEach(result => {
+                                try {
+                                    const resultCard = document.createElement('div');
+                                    resultCard.className = 'list-group-item result-card';
+                                    
+                                    // Check if this is a valid result with subclass
+                                    const isValidSubClass = result.subclass && result.subclass.trim().length > 0;
+                                    
+                                    // Format the result card with data
+                                    resultCard.innerHTML = `
+                                        <div class="result-title">
+                                            <h4>${result.title || 'Untitled'}</h4>
+                                            <span class="badge bg-primary">${result.similarity_percent || 0}% Match</span>
+                                        </div>
+                                        <p>${result.description || 'No description available'}</p>
+                                        <div class="result-details">
+                                            <div><strong><span class="t-section">Section:</span></strong> ${result.section || 'N/A'}</div>
+                                            <div><strong><span class="t-division">Division:</span></strong> ${result.division || 'N/A'}</div>
+                                            <div><strong><span class="t-group">Group:</span></strong> ${result.group || 'N/A'}</div>
+                                            <div><strong><span class="t-class">Class:</span></strong> ${result.class || 'N/A'}</div>
+                                            ${isValidSubClass ? `<div><strong><span class="t-subclass">Sub-Class:</span></strong> ${result.subclass}</div>` : ''}
+                                        </div>
+                                    `;
+                                    
+                                    // Add to the appropriate list
+                                    if (isValidSubClass) {
+                                        document.getElementById('valid-results-list').appendChild(resultCard);
+                                        validResultsCount++;
+                                    } else {
+                                        document.getElementById('other-results-list').appendChild(resultCard);
+                                        otherResultsCount++;
+                                    }
+                                } catch (err) {
+                                    console.error("Error rendering result:", err, result);
+                                }
+                            });
+                            
+                            // Show appropriate messages if either list is empty
+                            if (validResultsCount === 0) {
+                                document.getElementById('no-valid-results').style.display = 'block';
+                            }
+                            
+                            if (otherResultsCount === 0) {
+                                document.getElementById('no-other-results').style.display = 'block';
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Search error:", error);
+                            document.getElementById('loading-spinner').style.display = 'none';
+                            document.getElementById('no-results').style.display = 'block';
+                            document.getElementById('no-results').textContent = 'An error occurred while processing your search. Please try again later.';
+                        });
+                };
+            }
+            
+            // Handle admin panel buttons
+            const adminToggle = document.getElementById('admin-toggle');
+            const adminModal = new bootstrap.Modal(document.getElementById('adminModal'));
+            
+            if (adminToggle) {
+                adminToggle.addEventListener('click', () => {
+                    adminModal.show();
+                });
+            }
+            
+            // Rebuild index button
+            const rebuildIndexBtn = document.getElementById('rebuild-index-btn');
+            if (rebuildIndexBtn) {
+                rebuildIndexBtn.addEventListener('click', async () => {
+                    const statusElem = document.getElementById('rebuild-status');
+                    statusElem.style.display = 'block';
+                    statusElem.innerHTML = '<div class="alert alert-info">Rebuilding index, please wait...</div>';
+                    rebuildIndexBtn.disabled = true;
+                    
+                    try {
+                        const result = await window.apiClient.performAdminOperation('rebuild-index');
+                        if (result.status === 'success') {
+                            statusElem.innerHTML = `<div class="alert alert-success">Success! Index rebuilt in ${result.time_taken} seconds</div>`;
+                        } else {
+                            statusElem.innerHTML = `<div class="alert alert-danger">Error: ${result.message}</div>`;
+                        }
+                    } catch (error) {
+                        statusElem.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                    } finally {
+                        rebuildIndexBtn.disabled = false;
+                    }
+                });
+            }
+            
+            // Clear cache button
+            const clearCacheBtn = document.getElementById('clear-cache-btn');
+            if (clearCacheBtn) {
+                clearCacheBtn.addEventListener('click', async () => {
+                    const statusElem = document.getElementById('cache-status');
+                    statusElem.style.display = 'block';
+                    statusElem.innerHTML = '<div class="alert alert-info">Clearing cache, please wait...</div>';
+                    clearCacheBtn.disabled = true;
+                    
+                    try {
+                        const result = await window.apiClient.performAdminOperation('clear-embedding-cache');
+                        if (result.status === 'success') {
+                            statusElem.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                        } else {
+                            statusElem.innerHTML = `<div class="alert alert-danger">Error: ${result.message}</div>`;
+                        }
+                    } catch (error) {
+                        statusElem.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                    } finally {
+                        clearCacheBtn.disabled = false;
+                    }
+                });
+            }
+            
+            // Refresh stats button
+            const refreshStatsBtn = document.getElementById('refresh-stats-btn');
+            if (refreshStatsBtn) {
+                refreshStatsBtn.addEventListener('click', async () => {
+                    const statsElem = document.getElementById('index-stats');
+                    statsElem.innerHTML = '<p>Loading index statistics...</p>';
+                    refreshStatsBtn.disabled = true;
+                    
+                    try {
+                        const stats = await window.apiClient.getIndexStats();
+                        let html = '<table class="table table-bordered">';
+                        html += '<tr><th>Property</th><th>Value</th></tr>';
+                        
+                        for (const [key, value] of Object.entries(stats)) {
+                            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            html += `<tr><td>${displayKey}</td><td>${value}</td></tr>`;
+                        }
+                        
+                        html += '</table>';
+                        statsElem.innerHTML = html;
+                    } catch (error) {
+                        statsElem.innerHTML = `<div class="alert alert-danger">Error loading stats: ${error.message}</div>`;
+                    } finally {
+                        refreshStatsBtn.disabled = false;
+                    }
+                });
+                
+                // Load stats on modal open
+                document.getElementById('adminModal').addEventListener('shown.bs.modal', () => {
+                    refreshStatsBtn.click();
+                });
+            }
+        });
+
+        // Dictionary with translations
+        const translations = {
+            english: {
+                'header': 'Semantic NIC Code Search',
+                'subtitle': 'Search for industry codes and descriptions using natural language',
+                'powered-by': 'Powered by FAISS',
+                'search': 'Search',
+                'examples': 'Example searches: "bakery", "software development", "wheat cultivation", "manufacturing of plastic products"',
+                'note': 'Note: Only results with a valid Sub-Class will be displayed',
+                'advanced': 'Advanced Search Options',
+                'results-to-show': 'Results to show',
+                'search-mode': 'Search mode',
+                'show-metrics': 'Show performance metrics',
+                'standard': 'Standard',
+                'strict': 'Strict',
+                'relaxed': 'Relaxed',
+                'searching': 'Searching for matching NIC codes...',
+                'performance-metrics': 'Performance Metrics',
+                'total-time': 'Total time:',
+                'index-time': 'FAISS index access:',
+                'results-found': 'Results found:',
+                'search-results': 'Search Results',
+                'valid-nic': 'Valid NIC Codes',
+                'other-matches': 'Other Matches',
+                'no-valid-results': 'No valid NIC codes found.',
+                'no-other-results': 'No additional matches found.',
+                'no-results': 'No results found. Try a different search term.',
+                'error-occurred': 'An error occurred while processing your search. Please try again later.',
+                'admin': 'Admin',
+                'admin-panel': 'Admin Panel',
+                'rebuild-index': 'Rebuild Index',
+                'clear-cache': 'Clear Cache',
+                'section': 'Section',
+                'division': 'Division',
+                'group': 'Group',
+                'class': 'Class',
+                'subclass': 'Sub-Class',
+                'match': 'Match',
+            },
+            hindi: {
+                'header': 'सिमेंटिक एनआईसी कोड खोज',
+                'subtitle': 'प्राकृतिक भाषा का उपयोग करके उद्योग कोड और विवरण खोजें',
+                'powered-by': 'FAISS द्वारा संचालित',
+                'search': 'खोज',
+                'examples': 'उदाहरण खोज: "बेकरी", "सॉफ्टवेयर विकास", "गेहूं की खेती", "प्लास्टिक उत्पादों का निर्माण"',
+                'note': 'नोट: केवल वैध उप-वर्ग वाले परिणाम प्रदर्शित किए जाएंगे',
+                'advanced': 'उन्नत खोज विकल्प',
+                'results-to-show': 'दिखाने के लिए परिणाम',
+                'search-mode': 'खोज मोड',
+                'show-metrics': 'प्रदर्शन मेट्रिक्स दिखाएं',
+                'standard': 'मानक',
+                'strict': 'सख्त',
+                'relaxed': 'आराम',
+                'searching': 'मिलान एनआईसी कोड खोज रहा है...',
+                'performance-metrics': 'प्रदर्शन मेट्रिक्स',
+                'total-time': 'कुल समय:',
+                'index-time': 'FAISS इंडेक्स एक्सेस:',
+                'results-found': 'परिणाम मिले:',
+                'search-results': 'खोज परिणाम',
+                'valid-nic': 'वैध एनआईसी कोड',
+                'other-matches': 'अन्य मैच',
+                'no-valid-results': 'कोई वैध एनआईसी कोड नहीं मिला।',
+                'no-other-results': 'कोई अतिरिक्त मिलान नहीं मिला।',
+                'no-results': 'कोई परिणाम नहीं मिला। कोई अलग खोज शब्द आज़माएं।',
+                'error-occurred': 'आपकी खोज को संसाधित करते समय एक त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।',
+                'admin': 'प्रशासन',
+                'admin-panel': 'प्रशासन पैनल',
+                'rebuild-index': 'इंडेक्स पुनर्निर्माण',
+                'clear-cache': 'कैश साफ़ करें',
+                'section': 'अनुभाग',
+                'division': 'विभाजन',
+                'group': 'समूह',
+                'class': 'वर्ग',
+                'subclass': 'उप-वर्ग',
+                'match': 'मिलान',
+                'search_placeholder': 'व्यावसायिक गतिविधि या उद्योग का वर्णन करें...'
+            }
+        };
+
+        // Initialize API client
+        window.apiClient = {
+            // ...existing code...
+            
+            // Add language functions
+            getCurrentLanguage: async function() {
+                const response = await fetch('/api/languages');
+                return await response.json();
+            },
+            
+            setLanguage: async function(language) {
+                const response = await fetch('/api/set-language', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ language: language })
+                });
+                return await response.json();
+            },
+            
+            // Update search to include language
+            searchWithJson: async function(query, resultCount, searchMode, showMetrics) {
+                const currentLang = localStorage.getItem('selectedLanguage') || 'english';
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        count: resultCount,
+                        mode: searchMode,
+                        metrics: showMetrics,
+                        language: currentLang
+                    })
+                });
+                return await response.json();
+            },
+            
+            // ...existing code...
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // ...existing code...
+            
+            // Language switcher
+            const langButtons = document.querySelectorAll('.btn-language');
+            
+            // Set initial language
+            const savedLanguage = localStorage.getItem('selectedLanguage') || 'english';
+            setActiveLanguage(savedLanguage);
+            applyTranslations(savedLanguage);
+            
+            // Language button click handlers
+            langButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const lang = this.getAttribute('data-lang');
+                    setActiveLanguage(lang);
+                    applyTranslations(lang);
+                    
+                    // Save to localStorage
+                    localStorage.setItem('selectedLanguage', lang);
+                    
+                    // Update backend language setting
+                    window.apiClient.setLanguage(lang)
+                        .then(response => {
+                            console.log('Language updated:', response);
+                        })
+                        .catch(error => {
+                            console.error('Error updating language:', error);
+                        });
+                });
+            });
+            
+            function setActiveLanguage(lang) {
+                langButtons.forEach(btn => {
+                    if (btn.getAttribute('data-lang') === lang) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+            
+            function applyTranslations(lang) {
+                const dict = translations[lang];
+                if (!dict) return;
+                
+                document.querySelectorAll('[class*="t-"]').forEach(elem => {
+                    // Extract translation keys from class names (t-key)
+                    const classes = elem.className.split(' ');
+                    for (const cls of classes) {
+                        if (cls.startsWith('t-')) {
+                            const key = cls.substring(2);
+                            if (dict[key]) {
+                                elem.textContent = dict[key];
+                            }
+                        }
+                    }
+                });
+                
+                // Update placeholders
+                document.getElementById('search-input').placeholder = 
+                    lang === 'english' ? 'Describe a business activity or industry...' : 'व्यावसायिक गतिविधि या उद्योग का वर्णन करें...';
+            }
+            
+            // ...existing code...
+        });
+    </script>
+</body>
+</html>

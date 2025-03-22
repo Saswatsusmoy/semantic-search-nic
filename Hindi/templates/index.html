@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hindi Semantic Search</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.css">
+</head>
+<body>
+    <div class="theme-toggle">
+        <input type="checkbox" id="theme-switch" class="theme-switch">
+        <label for="theme-switch" class="theme-label">
+            <i class="fas fa-sun"></i>
+            <i class="fas fa-moon"></i>
+            <span class="theme-ball"></span>
+        </label>
+    </div>
+    
+    <div class="container">
+        <header class="hero">
+            <div class="hero-content">
+                <h1 class="animated-title">हिंदी सिमैंटिक सर्च</h1>
+                <p class="tagline">Discover semantically similar documents with AI-powered search</p>
+                <div class="search-container">
+                    <form id="search-form">
+                        <div class="input-group">
+                            <div class="input-icon">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <input type="text" id="query" name="query" placeholder="अपना खोज प्रश्न यहां दर्ज करें..." required>
+                            <button type="button" id="record-button" class="record-button" title="Click to record your query">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            <select id="top-k" name="top-k">
+                                <option value="5">5 results</option>
+                                <option value="10">10 results</option>
+                                <option value="20">20 results</option>
+                                <option value="50">50 results</option>
+                            </select>
+                            <button type="submit"><i class="fas fa-search"></i> Search</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="hero-accent">
+                <div class="circle circle-1"></div>
+                <div class="circle circle-2"></div>
+                <div class="circle circle-3"></div>
+            </div>
+        </header>
+
+        <div class="loading-indicator" id="loading">
+            <div class="spinner"></div>
+            <p>Searching<span class="dot-animation"></span></p>
+        </div>
+
+        <div class="search-results-wrapper">
+            <div class="search-meta">
+                <div class="search-stats" id="search-stats"></div>
+                <div class="view-toggle">
+                    <button id="grid-view-btn" class="view-button active"><i class="fas fa-th-large"></i></button>
+                    <button id="list-view-btn" class="view-button"><i class="fas fa-bars"></i></button>
+                </div>
+            </div>
+            
+            <div class="visualization-container" id="visualization-container">
+                <!-- Visualization will be inserted here -->
+            </div>
+            
+            <div class="results-container grid-view" id="results">
+                <!-- Search results will be displayed here -->
+            </div>
+        </div>
+
+        <div class="app-features">
+            <div class="recent-searches" id="recent-searches">
+                <h3><i class="fas fa-history"></i> Recent Searches</h3>
+                <ul id="recent-searches-list"></ul>
+            </div>
+
+            <div class="index-stats">
+                <h3><i class="fas fa-database"></i> Index Information</h3>
+                <div class="stats-cards">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-file-alt"></i></div>
+                        <div class="stat-value">{{ stats.get("document_count", "Unknown") }}</div>
+                        <div class="stat-label">Documents</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-vector-square"></i></div>
+                        <div class="stat-value">{{ stats.get("vector_count", "Unknown") }}</div>
+                        <div class="stat-label">Vectors</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-cube"></i></div>
+                        <div class="stat-value">{{ stats.get("dimension", "Unknown") }}</div>
+                        <div class="stat-label">Dimensions</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Hindi Semantic Search powered by FAISS and Transformer models</p>
+            <p class=>&copy;</p>
+        </footer>
+    </div>
+
+    <!-- Result template -->
+    <template id="result-template">
+        <div class="result-card">
+            <div class="card-header">
+                <div class="rank-badge"></div>
+                <div class="score-badge"></div>
+            </div>
+            <h3 class="description"></h3>
+            <div class="classification">
+                <div class="classification-item">
+                    <span class="label"><i class="fas fa-bookmark"></i> Section:</span>
+                    <span class="section-value"></span>
+                </div>
+                <div class="classification-item">
+                    <span class="label"><i class="fas fa-layer-group"></i> Division:</span>
+                    <span class="division-value"></span>
+                </div>
+                <div class="classification-item">
+                    <span class="label"><i class="fas fa-object-group"></i> Group:</span>
+                    <span class="group-value"></span>
+                </div>
+                <div class="classification-item">
+                    <span class="label"><i class="fas fa-tag"></i> Class:</span>
+                    <span class="class-value"></span>
+                </div>
+                <div class="classification-item">
+                    <span class="label"><i class="fas fa-tags"></i> Subclass:</span>
+                    <span class="subclass-value"></span>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
