@@ -3,7 +3,7 @@ import torch
 import time
 import librosa
 
-lang = "gu"
+lang = "en"
 #These models have to be downloaded when first time
 if lang == "en":
     model_id = "jonatasgrosman/wav2vec2-large-xlsr-53-english"
