@@ -400,21 +400,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 let classVal = result.Class || '';
                 classVal = String(classVal).trim();
                 
-                // For numeric display, try to convert code values to integers
-                const formatAsInteger = (value) => {
-                    // If the value is numeric, remove decimals and return as integer
-                    const parsedValue = parseFloat(value);
-                    if (!isNaN(parsedValue)) {
-                        return Math.floor(parsedValue);
-                    }
-                    return value; // Return original value if not numeric
-                };
-                
-                // Convert code values to integers where applicable
-                const formattedSubClass = formatAsInteger(subClass);
-                const formattedClass = formatAsInteger(classVal);
-                const formattedGroup = formatAsInteger(result.Group || '');
-                const formattedDivision = formatAsInteger(result.Division || '');
+                // Instead of converting to integers, just use the original values
+                const formattedSubClass = subClass;
+                const formattedClass = classVal;
+                const formattedGroup = result.Group || '';
+                const formattedDivision = result.Division || '';
                 
                 // Create result card
                 const resultCard = document.createElement('div');

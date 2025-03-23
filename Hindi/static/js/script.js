@@ -218,12 +218,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Utility function to format field values
     function formatFieldValue(value) {
-        // Check if value is explicitly NaN
-        if (typeof value === 'number' && isNaN(value)) {
-            return "NaN"; // Display NaN as a string
-        }
-        // Check for undefined, null, or empty string
-        return value ?? 'N/A'; // Using nullish coalescing operator
+        // Simply return the value as is if defined, otherwise return 'N/A'
+        return value !== undefined && value !== null && value !== '' ? value : 'N/A';
     }
     
     // Safely parse JSON with improved error handling
